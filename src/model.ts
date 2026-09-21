@@ -9,7 +9,7 @@ export const defaults: Settings = {
   spectrumPoints: 256, onlineWelch: true, welchSize: 8192, welchHop: 4096,
   rtaWidth: 3, rtaHop: 0.1, rtaFraction: 3, generatorEnabled: false,
 };
-export type EngineState = { running: boolean; generating: boolean; error: string; elapsed: number; frames: number; cacheBuilds: number };
+export type EngineState = { running: boolean; generating: boolean; error: string; elapsed: number; sweepLead: number; frames: number; cacheBuilds: number };
 export type PlotData = { frequency: number[]; db: number[]; elapsed: number; frames: number; analysisMs: number };
 interface SpectrumPlugin {
   start(args: { settings: Settings }): Promise<EngineState>;

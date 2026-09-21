@@ -4,7 +4,7 @@ import type { PlotData, Settings } from './model';
 const XMIN=20, XMAX=20000;
 const LEFT=56, TOP=12, RIGHT=14, BOTTOM=42;
 const frequencyText=(f:number)=>f>=1000 ? `${Number((f/1000).toPrecision(4))} kHz` : `${Number(f.toPrecision(4))} Hz`;
-export default function Chart({ data, settings, running, elapsed }: { data: PlotData|null; settings:Settings; running:boolean; elapsed:number }) {
+export default function Chart({ data, settings, running, elapsed, sweepLead }: { data: PlotData|null; settings:Settings; running:boolean; elapsed:number; sweepLead:number }) {
   const canvas=useRef<HTMLCanvasElement>(null);
   const [size,setSize]=useState({width:300,height:600});
   const [range,setRange]=useState({top:10,span:100});
@@ -22,9 +22,9 @@ export default function Chart({ data, settings, running, elapsed }: { data: Plot
   useEffect(()=>{
     if(!running || settings.mode!=='Spectrum') {setProgress(0);return;}
     let handle=0;
-    const update=()=>{setProgress(Math.max(0,Math.min(1,(progressClock.current.elapsed+(performance.now()-progressClock.current.at)/1000-(settings.generatorEnabled?0.5:0))/settings.duration)));handle=requestAnimationFrame(update);};
+    const update=()=>{setProgress(Math.max(0,Math.min(1,(progressClock.current.elapsed+(performance.now()-progressClock.current.at)/1000-sweepLead)/settings.duration)));handle=requestAnimationFrame(update);};
     handle=requestAnimationFrame(update);return ()=>cancelAnimationFrame(handle);
-  },[running,settings.mode,settings.duration,settings.generatorEnabled]);
+  },[running,settings.mode,settings.duration,sweepLead]);
   useEffect(()=>{
     const node=canvas.current!,ctx=node.getContext('2d')!,dpr=window.devicePixelRatio||1;
     const {width:w,height:h}=size;

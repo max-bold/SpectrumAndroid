@@ -6,7 +6,7 @@ import { Spectrum, loadSettings, validate, SETTINGS_KEY, type Settings, type Eng
 import logo from '../logo/White@4x.png';
 import { sliderSpec, updateNumeric } from './settings-controls';
 
-const initial: EngineState = {running:false,generating:false,error:'',elapsed:0,frames:0,cacheBuilds:0};
+const initial: EngineState = {running:false,generating:false,error:'',elapsed:0,sweepLead:0,frames:0,cacheBuilds:0};
 function Icon({kind}:{kind:string}) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {kind==='play' ? <path d="M8 5l11 7-11 7z" fill="currentColor" stroke="none"/> : kind==='stop' ? <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/> : kind==='generator' ? <path d="M2 12c4-17 6 17 10 0s6 17 10 0"/> : <><circle cx="12" cy="12" r="3"/><path d="M10 3h4l1 3 3-1 2 3-2 3 2 3-2 3-3-1-1 3h-4l-1-3-3 1-2-3 2-3-2-3 2-3 3 1z"/></>}
@@ -73,7 +73,7 @@ export default function App() {
     setSettings(next);localStorage.setItem(SETTINGS_KEY,JSON.stringify(next));
   }
   return <main>
-    <div className="chart-area"><Chart data={data} settings={settings} running={state.running} elapsed={state.elapsed}/></div>
+    <div className="chart-area"><Chart data={data} settings={settings} running={state.running} elapsed={state.elapsed} sweepLead={state.sweepLead}/></div>
     <div className="brand-logo" role="img" aria-label="BM Spectrum" style={{maskImage:`url("${logo}")`,WebkitMaskImage:`url("${logo}")`}}/>
     <nav className="controls" aria-label="Measuring">
       <button className={`icon-button primary ${state.running ? 'active' : ''}`} disabled={busy} aria-busy={busy} aria-label={state.running?'Stop measurement':'Start measurement'} title="Play / Stop" onClick={()=>void action(()=>{if(state.running) return Spectrum.stop();setData(null);return Spectrum.start({settings});})}><Icon kind={state.running?'stop':'play'}/></button>

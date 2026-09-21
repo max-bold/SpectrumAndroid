@@ -15,6 +15,7 @@ class AudioEngine(private val changed: () -> Unit, private val plot: (Measuremen
     @Volatile var generating = false; private set
     @Volatile var error: String? = null; private set
     @Volatile var elapsed = 0.0; private set
+    @Volatile var sweepLead = 0.0; private set
     @Volatile var frames = 0; private set
     @Volatile private var session: Session? = null
 
@@ -35,6 +36,7 @@ class AudioEngine(private val changed: () -> Unit, private val plot: (Measuremen
         check(!running) { "A measurement is already running" }
         stopMeasurement()
         error = null; elapsed = 0.0; frames = 0
+        sweepLead = if (settings.mode == "Spectrum" && settings.generatorEnabled) GENERATOR_FADE_SECONDS else 0.0
         // Prepare both Welch and full-recording plans before opening the microphone.
         val measurement = Measurement(settings, rate, cache, plot)
         val total = measurement.total

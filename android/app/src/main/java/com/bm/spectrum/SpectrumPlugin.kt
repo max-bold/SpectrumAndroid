@@ -24,7 +24,7 @@ class SpectrumPlugin : Plugin() {
         }
     }
     private fun state(): JSObject = JSObject().put("running", engine.running).put("generating", engine.generating)
-        .put("error", engine.error ?: "").put("elapsed", engine.elapsed).put("frames", engine.frames).put("cacheBuilds", engine.cache.builds)
+        .put("error", engine.error ?: "").put("elapsed", engine.elapsed).put("sweepLead", engine.sweepLead).put("frames", engine.frames).put("cacheBuilds", engine.cache.builds)
 
     private fun settings(call: PluginCall): Settings {
         val o = call.getObject("settings") ?: JSObject()
