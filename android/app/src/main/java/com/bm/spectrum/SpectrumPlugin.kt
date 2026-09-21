@@ -18,9 +18,9 @@ class SpectrumPlugin : Plugin() {
                 else activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
             notifyListeners("state", state())
-        }) { f, db, elapsed, frames, ms ->
-            notifyListeners("plot", JSObject().put("frequency", JSONArray(f.toList())).put("db", JSONArray(db.toList()))
-                .put("elapsed", elapsed).put("frames", frames).put("analysisMs", ms))
+        }) { p ->
+            notifyListeners("plot", JSObject().put("frequency", JSONArray(p.frequency.toList())).put("db", JSONArray(p.db.toList()))
+                .put("elapsed", p.elapsed).put("frames", p.frames).put("analysisMs", p.ms).put("kind", p.kind).put("fftSize", p.fftSize))
         }
     }
     private fun state(): JSObject = JSObject().put("running", engine.running).put("generating", engine.generating)

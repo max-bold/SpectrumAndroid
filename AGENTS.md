@@ -24,6 +24,7 @@ Native paths below are relative to `android/app/src/main/java/com/bm/spectrum/`.
 | Native `SpectrumPlugin.kt` | Permissions, serialized control calls, events and screen-awake flag |
 | Native `AudioEngine.kt` | Recording/playback sessions, worker threads, queueing and shutdown |
 | Native `dsp/Dsp.kt` | Gaussian plans/cache, FFT analysis, streaming frames, power averaging and generators |
+| Native `dsp/Measurement.kt` | Welch preview/full-recording final analysis, extended sweep and fade constant |
 | Native `dsp/OctaveBands.kt` | Base-10 fractional-octave center frequencies |
 | Native `dsp/Settings.kt` | Native defaults, validation, point counts and smoothing width |
 | `android/app/src/test/java/com/bm/spectrum/dsp/DspTest.kt` | Numerical regression tests |
@@ -41,7 +42,7 @@ Native paths below are relative to `android/app/src/main/java/com/bm/spectrum/`.
 
 ## Product decisions to preserve
 
-- RTA continuously updates bars; Spectrum produces a line from a finite recording, with optional online Welch averaging.
+- RTA continuously updates bars; Spectrum uses optional online Welch only as a preview and always finishes with a full-recording periodogram, including early stops.
 - Generator choice follows mode: Spectrum uses one logarithmic chirp; RTA repeats IFFT pink noise. There is no separate generator selector or gain setting.
 - The generator button arms playback for the next measurement. It does not independently start or stop sound. Peak amplitude is 0.9 (approximately −1 dBFS); Android media volume controls loudness.
 - Measurement and playback share a session. Manual stop, automatic completion, opening settings and backgrounding stop audio. Keep the screen awake only while measuring; there is no background service.
@@ -53,21 +54,23 @@ Native paths below are relative to `android/app/src/main/java/com/bm/spectrum/`.
 - Tap/horizontal drag selects the nearest measured frequency. Vertical drag pans Y; pinch zooms; double-tap resets Y and clears the cursor.
 - Restricted bands are shaded. Spectrum progress deliberately approximates the sweep by interpolating between log-frequency endpoints over the configured duration. Do not add precise playback synchronization for this indicator.
 - No persistent status row, sample count or `de-pink` caption. Errors remain visible when relevant.
-- Numeric settings use compact sliders. Final slider limits are pending agreement; current ranges preserve previous validation limits.
+- Numeric settings use compact sliders. The user accepted the existing ranges for v0.2. Welch controls display seconds but retain exact sample counts and power-of-two window choices internally, preserving stored settings.
 
 ## DSP contract
 
-1. Subtract each frame's mean. Use periodic Hann for RTA/Welch and a rectangular window for full-recording Spectrum.
+1. Subtract each frame's mean. Use periodic Hann for Welch and RTA without the generator, boxcar for RTA with the generator, and a rectangular window for full-recording Spectrum.
 2. Calculate one-sided PSD, normalized by sample rate and window energy. Double interior bins only; handle DC and Nyquist correctly.
 3. Apply de-pink as `power * f` (equivalent to `amplitude * sqrt(f)`) before smoothing in both modes. Desktop RTA compensates after smoothing and uses a 1 kHz reference, so absolute levels may differ. Do not silently change normalization to make graphs match visually.
 4. Gaussian smoothing follows desktop `audioanalysis/smoothing.py`: FWHM in octaves, −30 dB support, `1/f` integration weights and clipping to the measurement band. Empty sub-resolution bands use the −200 dB floor.
 5. RTA centers follow the IEC 61260 base-10 grid around 1 kHz. Even denominators have a half-step offset. Include bands whose edges intersect the measurement range, retaining the nominal 20 Hz band. FWHM is grid spacing, `log2(10^(0.3 / fraction))`, independent of the selected band. This is Gaussian smoothing on a standard grid, not an IEC-compliant filter bank.
-6. Welch averages linear power from complete overlapping frames, then converts to dB. Discard incomplete trailing frames. Early stop in offline Spectrum analyzes captured samples; stopping Welch before one full window yields no result.
-7. Pink noise uses IFFT with desktop fourth-order band envelopes (−0.5 dB at requested edges) and peak normalization. Chirp has short start/end fades in the audio engine. RTA noise period equals its window width; chirp duration equals Spectrum duration.
+6. Welch averages complete overlapping frames in linear power for live preview. Spectrum always stores PCM and finishes with a periodogram of the entire actual capture, with a corresponding full-length Gaussian plan and rectangular temporal window. Early stop before a complete Welch frame still yields a final result if at least two samples were captured.
+7. Pink noise uses IFFT with desktop fourth-order band envelopes (−0.5 dB at requested edges) and peak normalization. `GENERATOR_FADE_SECONDS` is 0.5, not a UI setting. Pink fades at session boundaries, never at repeated-period boundaries. RTA noise period equals its window width. Chirp extends the log sweep by 0.5 s on each side of the working duration and fades those extensions linearly. Unlike the desktop rejection of an above-Nyquist extension, Android holds the tail frequency at 0.49 × sample rate once reached, with continuous phase, so the default 20 kHz band remains usable at 48 kHz. Full Spectrum capture includes both fades; progress subtracts the initial fade. Manual stop drains the playback fade before releasing the track.
 
 `GaussianPlan` fuses normalized Gaussian weights, the Jacobian and de-pink into reusable rows. `PlanKey` includes FFT length, sample rate, band, point count, FWHM, temporal-window selection and octave fraction. `PlanCache` is an LRU capped at four plans / 64 MiB, with a 48 MiB per-plan guard. Build expensive plans before opening the microphone; preserve cache reuse across measurements. FFT objects, temporal windows and work arrays are reused within a measurement.
 
 Capture, analysis and playback run on separate workers. A bounded PCM queue separates recording from analysis; report overload instead of silently dropping samples. Online Welch uses ring buffers and running power averages. Preserve orderly resource release and stop behavior on all paths.
+
+For a full-recording Spectrum plan exceeding the 48 MiB weight budget, evaluate the exact Gaussian rows on demand without retaining a coefficient matrix. This bounds memory for long recordings; it trades final-analysis time for memory. RTA/Welch continue caching their weights. `Measurement` prepares both stream and final analyzers before opening audio.
 
 ## Settings and bridge consistency
 
@@ -106,7 +109,9 @@ Numerical tests compare Kotlin results with NumPy/SciPy and desktop Gaussian ref
 & D:/Code/Spectrum/venv/Scripts/python.exe scripts/reference_fixtures.py D:/Code/Spectrum
 ```
 
-At the latest implementation check, seven numerical tests and Android lint passed, along with smoke checks on a V2529 / Android 16. Layout and pinch were also inspected on the phone. These checks do not replace physical external-input or generator-output validation; see v0.2 in TODO.
+v0.2 adds regression tests for final periodograms with/without Welch, early stop, ±6.02 dB amplitude scaling, generator-dependent RTA windows, extended sweeps and bounded long-recording smoothing. Device smoke checks cover final analysis and settings visibility in both landscape rotations. Physical external-input/output validation and VS Code diagnostics were explicitly deferred by the user.
+
+`.github/workflows/android.yml` builds/tests/lints pushes and pull requests, retaining APK/report artifacts. Tags matching the Android versionName publish a GitHub Release using `releases/<tag>.md`. Tagged builds restore the existing development key from the repository secret `ANDROID_DEBUG_KEYSTORE` so APKs update v0.1 installations. Never commit or log that key. Releases remain debug builds. PR builds use disposable debug keys and cannot publish releases. Update Android versionCode/versionName and npm package version before a new release.
 
 If ADB screenshots are black, check display/lock state before concluding the UI failed. The phone has responded through WebView while its display was off. WindowManager's screen-hold report can lag the app's requested flag; distinguish them when diagnosing shutdown.
 

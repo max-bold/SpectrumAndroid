@@ -57,9 +57,11 @@ export default function App() {
   }
   function field(key:keyof Settings,label:string,unit:string) {
     const spec=sliderSpec(key,draft),value=draft[key] as number;
+    // Keep exact sample counts in storage/bridge; expose both Welch controls in seconds.
+    const displayValue=key==='welchSize'||key==='welchHop'?Number((value/48000).toPrecision(5)):Number(value.toFixed(3));
     const position=spec.log?Math.log(value/spec.min)/Math.log(spec.max/spec.min)*1000:spec.power?Math.log2(value):value;
-    return <label className="slider-field"><span className="slider-heading"><span>{label}</span><span className="slider-value">{Number(value.toFixed(3))} <small>{unit}</small></span></span>
-      <input aria-label={label} aria-valuetext={`${value} ${unit}`} type="range" min={spec.log?0:spec.min} max={spec.log?1000:spec.max} step={spec.log?1:spec.step} value={position} onChange={e=>{
+    return <label className="slider-field"><span className="slider-heading"><span>{label}</span><span className="slider-value">{displayValue} <small>{unit}</small></span></span>
+      <input aria-label={label} aria-valuetext={`${displayValue} ${unit}`} type="range" min={spec.log?0:spec.min} max={spec.log?1000:spec.max} step={spec.log?1:spec.step} value={position} onChange={e=>{
         const raw=Number(e.target.value);
         let v=spec.log?spec.min*(spec.max/spec.min)**(raw/1000):spec.power?2**raw:raw;
         if(spec.log) v=v>=1000?Math.round(v/10)*10:Math.round(v);
@@ -72,7 +74,7 @@ export default function App() {
   }
   return <main>
     <div className="chart-area"><Chart data={data} settings={settings} running={state.running} elapsed={state.elapsed}/></div>
-    <img className="brand-logo" src={logo} alt="BM Spectrum" draggable={false}/>
+    <div className="brand-logo" role="img" aria-label="BM Spectrum" style={{maskImage:`url("${logo}")`,WebkitMaskImage:`url("${logo}")`}}/>
     <nav className="controls" aria-label="Measuring">
       <button className={`icon-button primary ${state.running ? 'active' : ''}`} disabled={busy} aria-busy={busy} aria-label={state.running?'Stop measurement':'Start measurement'} title="Play / Stop" onClick={()=>void action(()=>{if(state.running) return Spectrum.stop();setData(null);return Spectrum.start({settings});})}><Icon kind={state.running?'stop':'play'}/></button>
       <button className={`icon-button ${settings.generatorEnabled?'active':''}`} disabled={busy} aria-label="Use generator" aria-pressed={settings.generatorEnabled} title="Use generator with measurement" onClick={toggleGenerator}><Icon kind="generator"/></button>
@@ -80,8 +82,8 @@ export default function App() {
     </nav>
     {(error||state.error) && !showSettings && <div className="error" role="alert">{error||state.error}</div>}
     {showSettings && <section className="settings" aria-label="Settings"><div className="settings-header"><button onClick={()=>{setShowSettings(false);setError('');}} aria-label="Back">←</button><h1>Settings</h1><button className="save" onClick={save}>Done</button></div>
-      <div className="settings-body">
-        <div className="segmented" aria-label="Mode">{(['RTA','Spectrum'] as const).map(mode=><button key={mode} className={draft.mode===mode?'selected':''} aria-pressed={draft.mode===mode} onClick={()=>setDraft({...draft,mode})}>{mode}</button>)}</div>
+      <div className="mode-selector"><div className="segmented" aria-label="Mode">{(['RTA','Spectrum'] as const).map(mode=><button key={mode} className={draft.mode===mode?'selected':''} aria-pressed={draft.mode===mode} onClick={()=>setDraft({...draft,mode})}>{mode}</button>)}</div></div>
+      <div className="settings-body" key={draft.mode}>
         <div className="settings-group"><h2>Band</h2>{field('low','Low frequency','Hz')}{field('high','High frequency','Hz')}</div>
         <div className="settings-group"><h2>{draft.mode}</h2>
         {draft.mode==='RTA' ? <>
@@ -90,7 +92,7 @@ export default function App() {
         </> : <>
           {field('duration','Duration','s')}{field('smoothing','Smoothing','oct')}{field('spectrumPoints','Point count','')}
           <label className="field"><span>Online Welch</span><input aria-label="Online Welch" className="switch" type="checkbox" checked={draft.onlineWelch} onChange={e=>setDraft(updateNumeric({...draft,onlineWelch:e.target.checked},'duration',draft.duration))}/></label>
-          {draft.onlineWelch && <>{field('welchSize','Welch window size','samples')}{field('welchHop','Welch hop','samples')}</>}
+          {draft.onlineWelch && <>{field('welchSize','Welch window','s')}{field('welchHop','Welch hop','s')}</>}
         </>}</div>
         {error && <p className="settings-error" role="alert">{error}</p>}
       </div>

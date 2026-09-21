@@ -22,9 +22,9 @@ export default function Chart({ data, settings, running, elapsed }: { data: Plot
   useEffect(()=>{
     if(!running || settings.mode!=='Spectrum') {setProgress(0);return;}
     let handle=0;
-    const update=()=>{setProgress(Math.min(1,(progressClock.current.elapsed+(performance.now()-progressClock.current.at)/1000)/settings.duration));handle=requestAnimationFrame(update);};
+    const update=()=>{setProgress(Math.max(0,Math.min(1,(progressClock.current.elapsed+(performance.now()-progressClock.current.at)/1000-(settings.generatorEnabled?0.5:0))/settings.duration)));handle=requestAnimationFrame(update);};
     handle=requestAnimationFrame(update);return ()=>cancelAnimationFrame(handle);
-  },[running,settings.mode,settings.duration]);
+  },[running,settings.mode,settings.duration,settings.generatorEnabled]);
   useEffect(()=>{
     const node=canvas.current!,ctx=node.getContext('2d')!,dpr=window.devicePixelRatio||1;
     const {width:w,height:h}=size;

@@ -22,20 +22,20 @@
 - [x] Verify generator samples and DSP numerically against reference fixtures. Physical output validation remains in v0.2.
 - [x] Document the project, screenshots, structure and implementation decisions in README and AGENTS.
 
-## v0.2 — remaining work
+## v0.2
 
-- [ ] In Spectrum mode, recompute the final spectrum from the entire recording using a periodogram after capture finishes, including when online Welch is enabled. Rebuild the smoothing windows for the full recording length; currently the Welch result remains.
-- [ ] Fix scrolling in landscape settings: with Spectrum selected, the mode buttons can disappear above the top edge. See `screenshots/Screenshot_20260921_133531.jpg` and `screenshots/Screenshot_20260921_133536.jpg`.
-- [ ] Express the online Welch window length and hop size in seconds.
-- [ ] Select the RTA temporal window according to generator state: use boxcar when the generator is enabled so parts of the spectrum are not lost; use Hann when it is disabled (for example, when measuring music) to reduce recording-boundary artifacts.
-- [ ] Verify the dB scale: doubling or halving signal amplitude must change the level by approximately ±6 dB, following `20 * log10(X)`.
-- [ ] Make the graph logo slightly smaller and more transparent; if feasible, tint it to match the graph color.
-- [ ] Add generator fade-in/out and extend the chirp frequency range as in the Windows version. Use a 0.5 s fade, defined as a parameter in code rather than exposed in settings.
-- [ ] Add README positioning that distinguishes the project from similar apps: professional, verified measurement algorithms in a user-friendly interface. Explain the intended advantages of chirp measurements over noise, including repeatability and greater frequency resolution.
-- [ ] Add a README note that the software is intended for professional use and is of little practical use without an external measurement microphone, such as Behringer UMC8000-U, MiniDSP UMIK-1 or Dayton Audio iMM-6C. Set clear expectations to avoid complaints about meaningless measurements with the built-in microphone.
+- [x] In Spectrum mode, recompute the final spectrum from the entire recording using a periodogram after capture finishes, including when online Welch is enabled. Rebuild the smoothing windows for the full recording length.
+- [x] Fix scrolling in landscape settings: with Spectrum selected, the mode buttons can disappear above the top edge. See `screenshots/Screenshot_20260921_133531.jpg` and `screenshots/Screenshot_20260921_133536.jpg`.
+- [x] Express the online Welch window length and hop size in seconds.
+- [x] Select the RTA temporal window according to generator state: use boxcar when the generator is enabled so parts of the spectrum are not lost; use Hann when it is disabled (for example, when measuring music) to reduce recording-boundary artifacts.
+- [x] Verify the dB scale: doubling or halving signal amplitude must change the level by approximately ±6 dB, following `20 * log10(X)`.
+- [x] Make the graph logo slightly smaller and more transparent; if feasible, tint it to match the graph color.
+- [x] Add generator fade-in/out and extend the chirp frequency range as in the Windows version. Use a 0.5 s fade, defined as a parameter in code rather than exposed in settings.
+- [x] Add README positioning that distinguishes the project from similar apps: professional, verified measurement algorithms in a user-friendly interface. Explain the intended advantages of chirp measurements over noise, including repeatability and greater frequency resolution.
+- [x] Add a README note that the software is intended for professional use and is of little practical use without an external measurement microphone, such as Behringer UMC8000-U, MiniDSP UMIK-1 or Dayton Audio iMM-6C. Set clear expectations to avoid complaints about meaningless measurements with the built-in microphone.
 - [ ] Configure CI/CD with GitHub Actions.
 - [ ] Publish a GitHub release.
-- [ ] Verify measured spectrum slope using an external input, including the effect of de-pink correction.
-- [ ] Verify both generators' actual output spectra through an external measurement path. Numerical fixture tests alone do not validate the Android playback chain.
-- [ ] Agree final numeric slider ranges and steps, then update UI controls and matching TypeScript/Kotlin validation.
-- [ ] Investigate and resolve reported VS Code diagnostics. TypeScript builds and Android checks pass, but the IDE-specific issue has not been reproduced or confirmed fixed.
+- [ ] Deferred: verify measured spectrum slope using an external input, including the effect of de-pink correction.
+- [ ] Deferred: verify both generators' actual output spectra through an external measurement path. Numerical fixture tests alone do not validate the Android playback chain.
+- [x] Review numeric slider ranges and steps: retain the existing ranges for v0.2, as agreed. Welch values are now displayed in seconds.
+- [ ] Deferred: investigate and resolve reported VS Code diagnostics separately. TypeScript builds and Android checks pass, but the IDE-specific issue has not been reproduced or confirmed fixed.

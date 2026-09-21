@@ -2,10 +2,18 @@
 
 A compact, offline audio analyzer based on desktop BM Spectrum. The main screen is one large, interactive graph with three controls: measurement, generator and settings. Signal processing runs in Kotlin on the phone; the interface uses React. No Python installation or server is needed.
 
+## Measurement algorithms with a focused interface
+
+BM Spectrum brings the desktop project's measurement algorithms into a small, practical interface for professional acoustic work. Its emphasis is on defined PSD normalization, explicit smoothing and repeatable measurements, with numerical regression tests against the desktop implementation and NumPy/SciPy.
+
+A logarithmic chirp repeats the same excitation on every run, avoiding the run-to-run variation of random noise. Final Spectrum analysis uses the entire captured recording, which can resolve finer frequency detail than a short RTA or Welch window. Resolution still depends on recording length and smoothing: chirp alone does not guarantee better resolution than equally long noise measurements. Pink noise remains useful for continuously observing changes in RTA.
+
+For meaningful acoustic measurements, use an external measurement microphone. A phone's built-in microphone and Android processing can strongly shape the result; that setup is mainly useful for trying the interface, rather than evaluating a loudspeaker's response. Examples of measurement microphones include [Behringer ECM8000-U](https://www.behringer.com/en/products/0506-ABU), [miniDSP UMIK-1](https://www.minidsp.com/products/acoustic-measurement/umik-1?showall=1) and [Dayton Audio iMM-6C](https://www.daytonaudio.com/product/1974/imm-6c-idevice-usb-c-calibrated-microphone). These are equipment examples, not a tested compatibility list for this app. Android USB audio routing depends on the phone; this version does not yet apply microphone calibration files or measure calibrated SPL.
+
 ## Measurement modes
 
 - **RTA** displays a continuously updated bar spectrum with 1/3-, 1/6- or 1/12-octave frequency bands. Choose the analysis window and update interval.
-- **Spectrum** records a measurement of a chosen duration and displays a smooth spectrum curve. It supports full-recording analysis and online Welch averaging.
+- **Spectrum** records a measurement of a chosen duration and displays a smooth spectrum curve. Online Welch provides a live preview; the final result always uses a periodogram of the entire recording, including when stopped early.
 
 Both modes use BM Spectrum's log-Gaussian smoothing and fixed de-pink correction. Levels are relative dB, not calibrated sound pressure levels (SPL).
 
@@ -26,9 +34,11 @@ Octave-band bars with the same interactive cursor:
 1. Open **Settings**, choose **RTA** or **Spectrum**, set the frequency band and measurement parameters, then tap **Done**.
 2. Enable the **Generator** button if you want the phone to produce the measurement signal. This button arms playback; it does not start sound by itself.
 3. Tap **Play** and allow microphone access when requested. RTA uses IFFT pink noise; Spectrum uses a logarithmic chirp. The generator starts with the measurement.
-4. Tap **Stop** to finish. Spectrum also stops automatically after its configured duration. Playback stops with measurement; the result remains on the graph.
+4. Tap **Stop** to finish. Spectrum also stops automatically after its configured duration, plus the generator fades when enabled. Playback fades out on stop; the result remains on the graph.
 
 Generator peak amplitude is fixed at **0.9**, approximately **−1 dBFS**. Use Android media volume to adjust playback loudness. With the generator disabled, the app measures incoming sound only.
+
+Chirp adds 0.5 s fade-in and fade-out outside the working sweep: a 5 s sweep takes 6 s in total. Its range is extended so fades fall outside the selected band; the upper tail stays below Nyquist at 48 kHz. Pink noise fades only when starting/stopping, not at each repeated period. RTA uses a rectangular analysis window with the generator enabled and Hann when it is disabled.
 
 Opening settings or putting the app in the background stops measurement and playback. The screen stays awake while measuring. Settings are saved on the device.
 
@@ -55,10 +65,10 @@ The logo and controls sit over the graph. In landscape orientation the buttons f
 | Spectrum smoothing | 0.3 octave |
 | Spectrum points | 256 |
 | Online Welch | Enabled |
-| Welch window / hop | 8192 / 4096 samples |
+| Welch window / hop | Approximately 0.17067 / 0.085333 s |
 | Generator | Disabled |
 
-Slider ranges are provisional; their final limits are a planned v0.2 discussion.
+The existing slider ranges are retained for v0.2. Welch controls show seconds while preserving exact sample counts internally; window choices remain powers of two.
 
 ## Current scope
 
@@ -85,6 +95,8 @@ The debug APK is generated at `android/app/build/outputs/apk/debug/app-debug.apk
 `npm run dev` previews the interface in a browser; recording and playback require the Android app.
 
 ## Development
+
+GitHub Actions builds the APK, runs numerical tests and Android lint on pushes and pull requests. Version tags publish an APK and SHA-256 checksum as a GitHub Release after those checks pass. Releases currently use the development signing key and remain debug builds; they are not Play Store packages.
 
 See [AGENTS.md](AGENTS.md) for the project structure, DSP decisions, build commands and verification workflow. See [TODO.md](TODO.md) for completed v0.1 work and v0.2 plans.
 

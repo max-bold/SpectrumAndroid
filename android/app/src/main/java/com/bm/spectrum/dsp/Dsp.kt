@@ -14,13 +14,13 @@ class GaussianPlan(val key: PlanKey) {
     val frequencies = if (key.octaveFraction > 0) OctaveBands.centers(key.low, key.high, key.octaveFraction)
         else DoubleArray(key.points) { key.low * (key.high / key.low).pow(it.toDouble() / (key.points - 1)) }
     private val starts = IntArray(key.points)
-    private val weights: Array<DoubleArray>
+    private val weights: Array<DoubleArray>?
+    private val ends = IntArray(key.points)
     val bytes: Long
     init {
         require(frequencies.size == key.points)
         val df = key.sampleRate.toDouble() / key.size
         val radius = key.width / (2 * sqrt(2 * ln(2.0))) * sqrt(-2 * ln(0.001))
-        val ends = IntArray(key.points)
         // BM Spectrum trims the input to the requested band before smoothing.
         val first = max(1, ceil(key.low / df).toInt())
         val last = min(key.size / 2 + 1, floor(key.high / df).toInt() + 1)
@@ -32,9 +32,13 @@ class GaussianPlan(val key: PlanKey) {
             starts[p] = a.coerceIn(first, max(first, last))
             ends[p] = b.coerceIn(starts[p], max(starts[p], last))
         }
-        bytes = ends.indices.sumOf { (ends[it] - starts[it]).toLong() * 8 }
-        require(bytes <= 48L * 1024 * 1024) { "Smoothing plan is too large. Reduce point count/duration or enable Welch." }
-        weights = Array(key.points) { p ->
+        val weightBytes = ends.indices.sumOf { (ends[it] - starts[it]).toLong() * 8 }
+        // Large full-recording periodograms are evaluated row by row. Keep the exact
+        // kernel without allocating a huge matrix; streaming RTA/Welch still cache weights.
+        val streamed = weightBytes > 48L * 1024 * 1024 && !key.hann && key.octaveFraction == 0
+        require(streamed || weightBytes <= 48L * 1024 * 1024) { "Smoothing plan is too large. Reduce point count, smoothing width or duration." }
+        bytes = if (streamed) 0 else weightBytes
+        weights = if (streamed) null else Array(key.points) { p ->
             val a = starts[p]
             val row = DoubleArray(ends[p] - a)
             var total = 0.0
@@ -50,9 +54,25 @@ class GaussianPlan(val key: PlanKey) {
         }
     }
     fun apply(power: DoubleArray, out: DoubleArray) {
-        for (p in weights.indices) {
+        val cached = weights
+        if (cached == null) {
+            val df = key.sampleRate.toDouble() / key.size
+            for (p in frequencies.indices) {
+                var numerator = 0.0
+                var denominator = 0.0
+                for (k in starts[p] until ends[p]) {
+                    val f = k * df
+                    val g = exp(-4 * ln(2.0) * (log2(f / frequencies[p]) / key.width).pow(2))
+                    numerator += g * power[k]
+                    denominator += g / f
+                }
+                out[p] = if (denominator > 0) numerator / denominator else 0.0
+            }
+            return
+        }
+        for (p in cached.indices) {
             var sum = 0.0
-            val row = weights[p]
+            val row = cached[p]
             val start = starts[p]
             for (i in row.indices) sum += row[i] * power[start + i]
             out[p] = sum

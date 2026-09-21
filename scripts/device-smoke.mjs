@@ -8,7 +8,7 @@ const c=await connect(), delay=ms=>new Promise(r=>setTimeout(r,ms));
 const defaults={mode:'RTA',low:20,high:20000,duration:5,smoothing:0.3,spectrumPoints:256,onlineWelch:true,welchSize:8192,welchHop:4096,rtaWidth:3,rtaHop:.1,rtaFraction:3,generatorEnabled:false};
 const original=await c.evaluate(`localStorage.getItem('bm-settings-v2')`);
 const report={};
-const click=async label=>{await c.evaluate(`document.querySelector(${JSON.stringify(`[aria-label="${label}"]`)}).click()`);await delay(150);};
+const click=async label=>{await c.evaluate(`document.querySelector(${JSON.stringify(`[aria-label="${label}"]`)}).click()`);await delay(150);await until('!document.querySelector("button[aria-busy=true]")');};
 const state=()=>c.evaluate('Capacitor.Plugins.Spectrum.getState()');
 async function until(expression,timeout=15000){const start=Date.now();while(Date.now()-start<timeout){if(await c.evaluate(expression))return;await delay(100);}throw Error(expression);}
 async function configure(settings){
@@ -53,17 +53,33 @@ try {
   await click('Start measurement');await delay(300);assert.equal((await state()).generating,true);c.screenshot('v2-sweep-progress');
   await until('__bm.plots.length>0 && !document.querySelector("button.primary.active")');
   assert.equal((await state()).generating,false);assert.equal((await state()).running,false);
-  report.welch=await c.evaluate('({points:__bm.plots.at(-1).db.length,frames:__bm.plots.at(-1).frames})');assert.equal(report.welch.frames,16);
+  report.welch=await c.evaluate('({points:__bm.plots.at(-1).db.length,kind:__bm.plots.at(-1).kind,fftSize:__bm.plots.at(-1).fftSize,preview:__bm.plots.some(p=>p.kind==="welch")})');
+  assert.equal(report.welch.kind,'periodogram');assert.equal(report.welch.fftSize,120000);assert.equal(report.welch.preview,true);
   c.screenshot('v2-spectrum');
   await configure({mode:'Spectrum',duration:1,onlineWelch:false,generatorEnabled:true});await click('Start measurement');
-  await until('__bm.plots.length>0');await delay(200);assert.equal((await state()).running,false);assert.equal((await state()).generating,false);report.offline=true;
+  await until('__bm.plots.length>0 && !document.querySelector("button.primary.active")');await delay(200);assert.equal((await state()).running,false);assert.equal((await state()).generating,false);report.offline=true;
   await click('Settings');assert.equal(await c.evaluate('document.querySelectorAll("input[type=number]").length'),0);assert.ok(await c.evaluate('document.querySelectorAll("input[type=range]").length>=5'));assert.equal(await c.evaluate('document.querySelectorAll("select").length'),0);c.screenshot('v2-settings');await click('Back');report.sliders=true;
+  await configure({mode:'Spectrum',duration:5,welchSize:65536,onlineWelch:true});
+  await click('Start measurement');await delay(250);await click('Stop measurement');
+  const partial=await c.evaluate('__bm.plots.at(-1)');assert.equal(partial.kind,'periodogram');assert.ok(partial.fftSize<65536);report.earlyStopFft=partial.fftSize;
+  await click('Settings');
+  assert.ok((await c.evaluate('document.querySelectorAll(".slider-field input")[5]?.getAttribute("aria-valuetext")')).endsWith(' s'));
+  const oldRotation=execFileSync(adb,['shell','wm','user-rotation'],{encoding:'utf8'}).trim();
+  try {
+    for(const rotation of ['1','3','0']) {
+      execFileSync(adb,['shell','wm','user-rotation','lock',rotation]);await delay(700);
+      await c.evaluate('document.querySelector(".settings-body").scrollTop=10000');await delay(100);
+      const rect=await c.evaluate('(()=>{const r=document.querySelector(".mode-selector").getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:innerHeight}})()');
+      assert.ok(rect.top>=0 && rect.bottom<rect.height);c.screenshot('v02-settings-rotation-'+rotation);
+    }
+  } finally {execFileSync(adb,['shell','wm','user-rotation',...oldRotation.split(/\s+/)]);}
+  report.settingsScroll=true;await click('Back');
   await configure({generatorEnabled:true});await click('Start measurement');await delay(300);
   execFileSync(adb,['shell','input','keyevent','KEYCODE_HOME']);await delay(600);
   execFileSync(adb,['shell','am','start','-n','com.bm.spectrum/.MainActivity']);await delay(500);
   assert.equal((await state()).running,false);assert.equal((await state()).generating,false);report.backgroundStop=true;
   assert.deepEqual(await c.evaluate('__bm.errors'),[]);
-  writeFileSync('test-results/device-smoke-v2.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+  writeFileSync('test-results/device-smoke-v02.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 } finally {
   try{await c.evaluate('Capacitor.Plugins.Spectrum.stop()');await c.evaluate(original===null?`localStorage.removeItem('bm-settings-v2');location.reload()`:`localStorage.setItem('bm-settings-v2',${JSON.stringify(original)});location.reload()`);}finally{c.close();}
 }

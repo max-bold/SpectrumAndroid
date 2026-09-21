@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import kotlin.math.*
 
-class AudioEngine(private val changed: () -> Unit, private val plot: (DoubleArray, DoubleArray, Double, Int, Double) -> Unit) {
+class AudioEngine(private val changed: () -> Unit, private val plot: (MeasurementPlot) -> Unit) {
     val rate = 48000
     val cache = PlanCache()
     @Volatile var running = false; private set
@@ -35,23 +35,13 @@ class AudioEngine(private val changed: () -> Unit, private val plot: (DoubleArra
         check(!running) { "A measurement is already running" }
         stopMeasurement()
         error = null; elapsed = 0.0; frames = 0
-        val total = (settings.duration * rate).roundToInt()
-        val size = if (settings.mode == "RTA") (settings.rtaWidth * rate).roundToInt() else if (settings.onlineWelch) settings.welchSize else total
-        val key = PlanKey(size, rate, settings.low, settings.high, settings.points(), settings.width(), settings.mode == "RTA" || settings.onlineWelch, if (settings.mode == "RTA") settings.rtaFraction else 0)
-        // All expensive plans are built before opening the microphone.
-        val analyzer = Analyzer(key, cache)
+        // Prepare both Welch and full-recording plans before opening the microphone.
+        val measurement = Measurement(settings, rate, cache, plot)
+        val total = measurement.total
         val s = Session()
-        val period = if (settings.generatorEnabled) {
-            val n = if (settings.mode == "Spectrum") total else (settings.rtaWidth * rate).roundToInt()
-            if (settings.mode == "RTA") Generators.pink(n, rate, settings.low, settings.high, 0.9)
-            else Generators.chirp(n, rate, settings.low, settings.high, 0.9).also { data ->
-                val fade = min(rate / 100, n / 2)
-                for (i in 0 until fade) {
-                    val gain = (0.5 - 0.5 * cos(PI * i / fade)).toFloat()
-                    data[i] *= gain; data[n - 1 - i] *= gain
-                }
-            }
-        } else null
+        val period = if (!settings.generatorEnabled) null else if (settings.mode == "RTA")
+            Generators.pink((settings.rtaWidth * rate).roundToInt(), rate, settings.low, settings.high, 0.9)
+        else Sweep(settings.duration, rate, settings.low, settings.high).signal()
         val minimum = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
         check(minimum > 0) { "Recording format is unavailable" }
         val recorder = try { AudioRecord.Builder().setAudioSource(MediaRecorder.AudioSource.MIC)
@@ -78,20 +68,34 @@ class AudioEngine(private val changed: () -> Unit, private val plot: (DoubleArra
         if (period != null) s.writer = thread(name = "BM-generator") {
             val output = s.track!!
             try {
-                var offset = 0
-                while (!s.stop.get()) {
-                    if (offset == period.size) {
-                        if (settings.mode == "Spectrum") {
-                            // Keep the track alive while the final queued samples play.
-                            while (!s.stop.get()) Thread.sleep(10)
-                            break
-                        }
-                        offset = 0
+                val fade = (GENERATOR_FADE_SECONDS * rate).roundToInt()
+                val block = FloatArray(1024)
+                var position = 0
+                var stoppingAt: Int? = null
+                var written = 0L
+                while (true) {
+                    if (s.stop.get() && stoppingAt == null) stoppingAt = position
+                    val remaining = stoppingAt?.let { fade - (position - it) } ?: Int.MAX_VALUE
+                    val available = if (settings.mode == "Spectrum") period.size - position else Int.MAX_VALUE
+                    val count = min(block.size, min(remaining, available))
+                    if (count <= 0) break
+                    for (i in 0 until count) {
+                        val p = position + i
+                        var gain = if (settings.mode == "RTA") fadeGain(p, fade) else 1.0
+                        stoppingAt?.let { gain *= 1 - fadeGain(p - it, fade) }
+                        block[i] = (period[p % period.size] * gain).toFloat()
                     }
-                    val count = output.write(period, offset, min(1024, period.size - offset), AudioTrack.WRITE_BLOCKING)
-                    if (count < 0) { if (!s.stop.get()) error("AudioTrack error: $count"); break }
-                    offset += count
+                    var offset = 0
+                    while (offset < count) {
+                        val n = output.write(block, offset, count - offset, AudioTrack.WRITE_BLOCKING)
+                        check(n > 0) { "AudioTrack error: $n" }
+                        offset += n; written += n
+                    }
+                    position += count
                 }
+                // Drain the queued fade instead of flushing it away on stop.
+                val deadline = System.nanoTime() + 2_000_000_000L
+                while ((output.playbackHeadPosition.toLong() and 0xffffffffL) < written && System.nanoTime() < deadline) Thread.sleep(5)
             } catch (e: Exception) {
                 if (!s.stop.get()) { fail(e.message ?: "Generator failed"); signalStop(s) }
             } finally {
@@ -101,44 +105,16 @@ class AudioEngine(private val changed: () -> Unit, private val plot: (DoubleArra
         }
         s.processor = thread(name = "BM-analysis") {
             try {
-                val average = PowerAverage(settings.points())
-                var lastPublish = 0L
-                var lastPower: DoubleArray? = null
-                var lastMs = 0.0
-                fun publish() {
-                    lastPower?.let { p -> plot(analyzer.plan.frequencies, DoubleArray(p.size) { 10*log10(p[it].coerceAtLeast(1e-20)) }, elapsed, frames, lastMs) }
-                }
-                val hop = if (settings.mode == "RTA") (settings.rtaHop * rate).roundToInt() else if (settings.onlineWelch) settings.welchHop else size
-                val stream = FrameStream(size, hop) { frame ->
-                    val startNs = System.nanoTime()
-                    val p = analyzer.analyze(frame)
-                    lastPower = if (settings.mode == "Spectrum" && settings.onlineWelch) average.add(p) else p
-                    lastMs = (System.nanoTime() - startNs) / 1e6
-                    frames++
-                    val now = System.nanoTime()
-                    if (now - lastPublish > 80_000_000L) { publish(); lastPublish = now }
-                }
-                val offline = if (settings.mode == "Spectrum" && !settings.onlineWelch) DoubleArray(total) else null
-                var read = 0
                 var lastStatus = 0L
                 while (!s.done.get() || s.queue.isNotEmpty()) {
-                    val item = s.queue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS) ?: continue
-                    val (block, count) = item
-                    if (offline != null) for (i in 0 until count) offline[read+i] = block[i].toDouble()
-                    read += count
-                    elapsed = read.toDouble()/rate
-                    if (offline == null) stream.push(block, count)
+                    val (block, count) = s.queue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS) ?: continue
+                    measurement.push(block, count)
+                    elapsed = measurement.elapsed; frames = measurement.frames
                     s.pool.offer(block)
                     if (System.nanoTime() - lastStatus > 200_000_000L) { changed(); lastStatus = System.nanoTime() }
                 }
-                if (offline != null && read >= 2) {
-                    val finalAnalyzer = if (read == size) analyzer else Analyzer(key.copy(size = read), cache)
-                    val startNs = System.nanoTime()
-                    val p = finalAnalyzer.analyze(if (read == size) offline else offline.copyOf(read))
-                    frames = 1
-                    plot(finalAnalyzer.plan.frequencies, DoubleArray(p.size) { 10*log10(p[it].coerceAtLeast(1e-20)) }, elapsed, frames, (System.nanoTime()-startNs)/1e6)
-                } else publish()
-                if (frames == 0 && read > 0 && settings.mode == "Spectrum") fail("Recording is shorter than a Welch window; no result")
+                measurement.finish()
+                frames = measurement.frames
             } catch (e: Exception) { fail(e.message ?: "Analysis failed") }
             finally {
                 signalStop(s)
@@ -172,7 +148,7 @@ class AudioEngine(private val changed: () -> Unit, private val plot: (DoubleArra
     private fun signalStop(s: Session) {
         s.stop.set(true)
         try { s.record?.stop() } catch (_: Exception) { }
-        try { s.track?.pause(); s.track?.flush() } catch (_: Exception) { }
+        // Playback observes stop and completes its fade-out before releasing the track.
     }
 
     @Synchronized fun stopMeasurement() {
