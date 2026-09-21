@@ -33,7 +33,7 @@
 - [x] Add generator fade-in/out and extend the chirp frequency range as in the Windows version. Use a 0.5 s fade, defined as a parameter in code rather than exposed in settings.
 - [x] Add README positioning that distinguishes the project from similar apps: professional, verified measurement algorithms in a user-friendly interface. Explain the intended advantages of chirp measurements over noise, including repeatability and greater frequency resolution.
 - [x] Add a README note that the software is intended for professional use and is of little practical use without an external measurement microphone, such as Behringer UMC8000-U, MiniDSP UMIK-1 or Dayton Audio iMM-6C. Set clear expectations to avoid complaints about meaningless measurements with the built-in microphone.
-- [ ] Configure CI/CD with GitHub Actions.
+- [x] Configure CI/CD with GitHub Actions. Clean-runner build, numerical tests and Android lint pass.
 - [ ] Publish a GitHub release.
 - [ ] Deferred: verify measured spectrum slope using an external input, including the effect of de-pink correction.
 - [ ] Deferred: verify both generators' actual output spectra through an external measurement path. Numerical fixture tests alone do not validate the Android playback chain.
