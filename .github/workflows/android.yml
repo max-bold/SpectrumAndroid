@@ -33,15 +33,15 @@ jobs:
         run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'build-tools;36.0.0'
       - run: npm ci
       - run: npm run sync
-      - name: Restore development signing key for tagged releases
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Restore development signing key for trusted builds
+        if: github.event_name != 'pull_request'
         env:
           ANDROID_DEBUG_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
         run: |
           test -n "$ANDROID_DEBUG_KEYSTORE"
-          mkdir -p "$HOME/.android"
-          printf '%s' "$ANDROID_DEBUG_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
-          chmod 600 "$HOME/.android/debug.keystore"
+          printf '%s' "$ANDROID_DEBUG_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/bm-debug.keystore"
+          chmod 600 "$RUNNER_TEMP/bm-debug.keystore"
+          echo "BM_DEBUG_KEYSTORE=$RUNNER_TEMP/bm-debug.keystore" >> "$GITHUB_ENV"
       - name: Build, numerical tests and lint
         working-directory: android
         run: bash gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --no-daemon
@@ -51,6 +51,11 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           node --input-type=module -e 'import fs from "node:fs"; const m=JSON.parse(fs.readFileSync("android/app/build/outputs/apk/debug/output-metadata.json")); if ("v"+m.elements[0].versionName!==process.env.RELEASE_TAG) process.exit(1);'
+      - name: Verify APK update compatibility
+        if: github.event_name != 'pull_request'
+        run: |
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk > signing-certificate.txt
+          grep -Fqx 'Signer #1 certificate SHA-256 digest: 67fb360d89975cff1a58a8ba6e2f3f4f8b5d3a8e331998e1deb7ba85619a8634' signing-certificate.txt
       - name: Package APK
         run: |
           mkdir -p artifacts
