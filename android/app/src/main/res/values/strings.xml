@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BM Spectrum</string>
+    <string name="title_activity_main">BM Spectrum</string>
+    <string name="package_name">com.bm.spectrum</string>
+    <string name="custom_url_scheme">com.bm.spectrum</string>
+</resources>
