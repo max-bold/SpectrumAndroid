@@ -46,7 +46,7 @@ Native paths below are relative to `android/app/src/main/java/com/bm/spectrum/`.
 - Generator choice follows mode: Spectrum uses one logarithmic chirp; RTA repeats IFFT pink noise. There is no separate generator selector or gain setting.
 - The generator button arms playback for the next measurement. It does not independently start or stop sound. Peak amplitude is 0.9 (approximately −1 dBFS); Android media volume controls loudness.
 - Measurement and playback share a session. Manual stop, automatic completion, opening settings and backgrounding stop audio. Keep the screen awake only while measuring; there is no background service.
-- Use standard `AudioRecord` and `AudioTrack`, mono 48 kHz float PCM. Precise latency alignment, custom routing and resampling are outside current scope.
+- Use standard `AudioRecord` and `AudioTrack`, mono 48 kHz float PCM. Both RTA and Spectrum request `MediaRecorder.AudioSource.UNPROCESSED` through the shared recorder setup. Request it even when the device support property is false, as agreed; this does not guarantee bypassing vendor processing on such devices. Precise latency alignment, custom routing and resampling are outside current scope.
 - No reference input or calibrated SPL. Display relative de-pink dB. File import/export and persistent audio recording are not implemented.
 - Only log-Gaussian smoothing is supported. RTA uses 1/3-, 1/6- or 1/12-octave rows, not an arbitrary bar count.
 - The graph occupies the main screen. PNG branding overlays the upper left; landscape controls form a vertical column over the upper right. Preserve Android safe areas on all four sides, including navigation bars and cutouts.

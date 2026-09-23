@@ -46,7 +46,9 @@ class AudioEngine(private val changed: () -> Unit, private val plot: (Measuremen
         else Sweep(settings.duration, rate, settings.low, settings.high).signal()
         val minimum = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
         check(minimum > 0) { "Recording format is unavailable" }
-        val recorder = try { AudioRecord.Builder().setAudioSource(MediaRecorder.AudioSource.MIC)
+        // Both modes request the same raw capture path; vendor processing may remain
+        // on devices that do not declare UNPROCESSED support.
+        val recorder = try { AudioRecord.Builder().setAudioSource(MediaRecorder.AudioSource.UNPROCESSED)
             .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setSampleRate(rate).setChannelMask(AudioFormat.CHANNEL_IN_MONO).build())
             .setBufferSizeInBytes(max(minimum * 4, rate * 4)).build()
         } catch (e: SecurityException) {

@@ -6,6 +6,35 @@ import org.junit.Test
 
 class MeasurementTest {
     private val rate = 48000
+    @Test fun rtaAndFinalSpectrumAgreeForTheSamePeriodicPinkRecording() {
+        val random = java.util.Random(23092026)
+        val period = Generators.pink(rate, rate, 20.0, 20000.0, 0.9,
+            DoubleArray(rate / 2 + 1) { random.nextDouble() * 2 * PI })
+        val pcm = FloatArray(3 * rate) { period[it % period.size] }
+        for (fraction in listOf(3, 6, 12)) {
+            val rtaSettings = Settings(rtaWidth=1.0, rtaHop=1.0, rtaFraction=fraction, generatorEnabled=true)
+            fun run(settings: Settings): MeasurementPlot {
+                val plots = mutableListOf<MeasurementPlot>()
+                val measurement = Measurement(settings, rate, PlanCache(), plots::add)
+                measurement.push(pcm, pcm.size); measurement.finish()
+                return plots.last()
+            }
+            val rta = run(rtaSettings)
+            for (preview in listOf(false, true)) {
+                val spectrum = run(Settings(mode="Spectrum", duration=3.0, smoothing=rtaSettings.width(),
+                    spectrumPoints=1024, onlineWelch=preview))
+                for (i in rta.frequency.indices) {
+                    val f = rta.frequency[i]
+                    if (f < 100.0 || f > 15000.0) continue
+                    val upper = spectrum.frequency.indexOfFirst { it >= f }.coerceAtLeast(1)
+                    val a = upper - 1
+                    val mix = ln(f / spectrum.frequency[a]) / ln(spectrum.frequency[upper] / spectrum.frequency[a])
+                    val interpolated = spectrum.db[a] * (1-mix) + spectrum.db[upper] * mix
+                    assertEquals("1/$fraction octave, $f Hz, Welch=$preview", rta.db[i], interpolated, 0.15)
+                }
+            }
+        }
+    }
     private fun input(n: Int) = FloatArray(n) { i ->
         // Nonstationary recording makes a Welch-only final result observably different.
         ((if (i < n/2) 0.1 else 0.6) * sin(2*PI*937*i/rate) + 0.03*cos(2*PI*321*i/rate)).toFloat()

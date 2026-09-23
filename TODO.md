@@ -34,8 +34,17 @@
 - [x] Add README positioning that distinguishes the project from similar apps: professional, verified measurement algorithms in a user-friendly interface. Explain the intended advantages of chirp measurements over noise, including repeatability and greater frequency resolution.
 - [x] Add a README note that the software is intended for professional use and is of little practical use without an external measurement microphone, such as Behringer UMC8000-U, MiniDSP UMIK-1 or Dayton Audio iMM-6C. Set clear expectations to avoid complaints about meaningless measurements with the built-in microphone.
 - [x] Configure CI/CD with GitHub Actions. Clean-runner build, numerical tests and Android lint pass.
-- [ ] Publish a GitHub release.
-- [ ] Deferred: verify measured spectrum slope using an external input, including the effect of de-pink correction.
-- [ ] Deferred: verify both generators' actual output spectra through an external measurement path. Numerical fixture tests alone do not validate the Android playback chain.
+- [x] Publish a GitHub release.
 - [x] Review numeric slider ranges and steps: retain the existing ranges for v0.2, as agreed. Welch values are now displayed in seconds.
-- [ ] Deferred: investigate and resolve reported VS Code diagnostics separately. TypeScript builds and Android checks pass, but the IDE-specific issue has not been reproduced or confirmed fixed.
+
+## v0.2.1
+
+- [x] Check RTA de-pinking (10 dB/dec) and vertical scale. Numerical tests verify slope and ±6.02 dB amplitude scaling. On-device RTA/pink-noise and Spectrum/chirp curves have similar shapes with UNPROCESSED input (median difference 0.85 dB over 200 Hz–10 kHz after constant level alignment).
+- [ ] Verify measured spectrum slope using an external input, including the effect of de-pink correction.
+- [ ] Verify both generators' actual output spectra through an external measurement path. Numerical fixture tests alone do not validate the Android playback chain.
+- [ ] Change spectrum smoothing slider range to (0.1, 1.0) oct
+- [x] Investigate bypassing phone noise reduction with the built-in microphone; request UNPROCESSED in both RTA and Spectrum. Device comparisons confirm different capture behavior from DEFAULT. The tested phone reports UNPROCESSED support=false, so complete bypass of vendor processing is not guaranteed.
+
+## v0.3
+
+- [ ] Phone mic calibration
