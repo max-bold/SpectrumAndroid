@@ -48,3 +48,6 @@
 ## v0.3
 
 - [ ] Phone mic calibration
+- [ ] Investigate the issue with audio output to an external audio interface over USB OTG.
+- [ ] Open the settings window immediately when the settings button is pressed, without waiting for the fade-out to complete.
+- [ ] Verify behavior when processing takes longer than the hop interval. The analyzer must not accumulate latency; it should always process the most recent available window.
