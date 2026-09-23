@@ -44,10 +44,10 @@
 - [ ] Verify both generators' actual output spectra through an external measurement path. Numerical fixture tests alone do not validate the Android playback chain.
 - [ ] Change spectrum smoothing slider range to (0.1, 1.0) oct
 - [x] Investigate bypassing phone noise reduction with the built-in microphone; request UNPROCESSED in both RTA and Spectrum. Device comparisons confirm different capture behavior from DEFAULT. The tested phone reports UNPROCESSED support=false, so complete bypass of vendor processing is not guaranteed.
+- [ ] Investigate the issue with audio output to an external audio interface over USB OTG.
+- [ ] Open the settings window immediately when the settings button is pressed, without waiting for the fade-out to complete.
+- [ ] Verify behavior when processing takes longer than the hop interval. The analyzer must not accumulate latency; it should always process the most recent available window.
 
 ## v0.3
 
 - [ ] Phone mic calibration
-- [ ] Investigate the issue with audio output to an external audio interface over USB OTG.
-- [ ] Open the settings window immediately when the settings button is pressed, without waiting for the fade-out to complete.
-- [ ] Verify behavior when processing takes longer than the hop interval. The analyzer must not accumulate latency; it should always process the most recent available window.
