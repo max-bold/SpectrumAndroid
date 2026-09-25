@@ -63,6 +63,17 @@ class Measurement(private val settings: Settings, private val rate: Int, private
         samples += count
         stream?.push(block, count)
     }
+    /** RTA uses a recorder-owned rolling window so slow analysis skips old frames. */
+    fun pushLatest(snapshot: LatestWindow.Snapshot) {
+        require(!spectrum)
+        val start = System.nanoTime()
+        val power = streamAnalyzer!!.analyze(snapshot.pcm)
+        lastPower = power
+        lastMs = (System.nanoTime() - start) / 1e6
+        samples = snapshot.captured.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        frames++
+        publish()
+    }
     private fun publish() {
         lastPower?.let { output(streamAnalyzer!!, it, if (spectrum) "welch" else "rta", lastMs) }
     }

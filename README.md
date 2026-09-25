@@ -12,7 +12,7 @@ For meaningful acoustic measurements, use an external measurement microphone. A 
 
 ## Measurement modes
 
-- **RTA** displays a continuously updated bar spectrum with 1/3-, 1/6- or 1/12-octave frequency bands. Choose the analysis window and update interval.
+- **RTA** displays continuously updated 1/3- or 1/6-octave bars, or a line with 1/12-octave spacing. Choose the analysis window and update interval.
 - **Spectrum** records a measurement of a chosen duration and displays a smooth spectrum curve. Online Welch provides a live preview; the final result always uses a periodogram of the entire recording, including when stopped early.
 
 Both modes use BM Spectrum's log-Gaussian smoothing and fixed de-pink correction. Levels are relative dB, not calibrated sound pressure levels (SPL).
@@ -40,11 +40,11 @@ Generator peak amplitude is fixed at **0.9**, approximately **−1 dBFS**. Use A
 
 Chirp adds 0.5 s fade-in and fade-out outside the working sweep: a 5 s sweep takes 6 s in total. Its range is extended so fades fall outside the selected band; the upper tail stays below Nyquist at 48 kHz. Pink noise fades only when starting/stopping, not at each repeated period. RTA uses a rectangular analysis window with the generator enabled and Hann when it is disabled.
 
-Opening settings or putting the app in the background stops measurement and playback. The screen stays awake while measuring. Settings are saved on the device.
+Settings open immediately when tapped; measurement and playback finish stopping in the background. Putting the app in the background also stops them. The screen stays awake while measuring. Settings are saved on the device.
 
 ## Graph controls
 
-- **Tap or drag horizontally:** select a frequency and read its level.
+- **Tap or drag horizontally:** select a frequency and read its level. During RTA measurement, the cursor follows the strongest measured frequency and stays at the last maximum when measurement stops.
 - **Drag vertically:** move the dB scale.
 - **Pinch:** zoom the dB scale.
 - **Double-tap:** reset the dB scale and clear the cursor.
@@ -68,13 +68,13 @@ The logo and controls sit over the graph. In landscape orientation the buttons f
 | Welch window / hop | Approximately 0.17067 / 0.085333 s |
 | Generator | Disabled |
 
-The existing slider ranges are retained for v0.2. Welch controls show seconds while preserving exact sample counts internally; window choices remain powers of two.
+Spectrum smoothing can be set from 0.1 to 1.0 octave. Welch controls show seconds while preserving exact sample counts internally; window choices remain powers of two.
 
 ## Current scope
 
-Capture and analysis use standard Android audio at mono 48 kHz; Android handles routing and resampling. On Android 14+, supported USB outputs use a 48 kHz, 16-bit stereo mixer for simultaneous playback and recording, with the same generator signal on both channels. This version has no reference channel, calibrated SPL, file import/export or saved audio recordings. Spectrum capture is analyzed in memory. The octave frequency grid is standard, but analysis uses Gaussian smoothing rather than an IEC-certified filter bank.
+Capture and analysis use standard Android audio at mono 48 kHz; Android handles routing and resampling. On Android 14+, supported USB outputs use a 48 kHz, 16-bit stereo mixer for simultaneous playback and recording, with the same generator signal on both channels. This version has no reference channel, calibrated SPL, file import/export or saved audio recordings. Spectrum capture is analyzed in memory. The 1/3-, 1/6- and 1/12-octave center grids follow standard fractional-octave spacing and use Gaussian smoothing rather than an IEC-certified filter bank. RTA analyzes the latest complete recording window, so slow processing skips outdated updates instead of accumulating latency.
 
-Numerical DSP tests and device checks have passed on a V2529 running Android 16. USB loopback with a Creative SB X-Fi Surround 5.1 Pro verifies playback and capture of both generators. USB capture uses a separate Android recording mode to avoid the low-frequency filtering observed on this phone. Loopback tones measured approximately -0.09 dB at 20 Hz and -0.52 dB at 20 kHz relative to 1 kHz; compatibility with other phones and interfaces still depends on their audio drivers. Broader external-input spectrum slope and generator-output characterization remain on the [roadmap](TODO.md).
+Numerical DSP tests and device checks have passed on a V2529 running Android 16. USB loopback with a Creative SB X-Fi Surround 5.1 Pro verifies playback and capture of both generators. USB capture uses a separate Android recording mode to avoid the low-frequency filtering observed on this phone. Loopback tones measured approximately -0.09 dB at 20 Hz and -0.52 dB at 20 kHz relative to 1 kHz; compatibility with other phones and interfaces still depends on their audio drivers.
 
 ## Build and install
 

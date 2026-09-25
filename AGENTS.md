@@ -26,7 +26,8 @@ Native paths below are relative to `android/app/src/main/java/com/bm/spectrum/`.
 | Native `MeasurementInput.kt` | Shared recorder setup and USB-specific capture source |
 | Native `GeneratorOutput.kt` | Playback format, USB duplex mixer compatibility and mono-to-stereo PCM16 conversion |
 | Native `dsp/Dsp.kt` | Gaussian plans/cache, FFT analysis, streaming frames, power averaging and generators |
-| Native `dsp/Measurement.kt` | Welch preview/full-recording final analysis, extended sweep and fade constant |
+| Native `dsp/Measurement.kt` | Welch preview/full-recording final analysis, latest RTA window analysis, extended sweep and fade constant |
+| Native `dsp/LatestWindow.kt` | Bounded recorder-owned rolling PCM window for RTA |
 | Native `dsp/OctaveBands.kt` | Base-10 fractional-octave center frequencies |
 | Native `dsp/Settings.kt` | Native defaults, validation, point counts and smoothing width |
 | `android/app/src/test/java/com/bm/spectrum/dsp/DspTest.kt` | Numerical regression tests |
@@ -52,13 +53,13 @@ Native paths below are relative to `android/app/src/main/java/com/bm/spectrum/`.
 - Measurement and playback share a session. Manual stop, automatic completion, opening settings and backgrounding stop audio. Keep the screen awake only while measuring; there is no background service.
 - Use standard `AudioRecord` and `AudioTrack`, mono 48 kHz float PCM for capture, DSP and default playback. For USB outputs on Android 14+, request a supported DEFAULT mixer at 48 kHz stereo PCM16 and match AudioTrack to it; duplicate the mono generator into both channels with unity gain. This fixes duplex failure on V2529 / Creative SB X-Fi Surround 5.1 Pro: changing AudioTrack format alone did not fix the default vendor mixer. Clear the app's mixer preference after releasing playback, including startup failures. Keep Android media volume; do not use BIT_PERFECT. Unsupported mixer configurations and older Android versions retain default playback. Both RTA and Spectrum use `MeasurementInput`: USB device/headset inputs request `VOICE_RECOGNITION` and select that USB input with `setPreferredDevice`; other inputs retain `UNPROCESSED`, even when its support property is false. On V2529, USB UNPROCESSED applies an undocumented high-pass (20 Hz: -52 dB; 50 Hz: -15 dB) with no reported AudioEffect; VOICE_RECOGNITION removes it (20 Hz: -0.09 dB). Do not blindly switch USB back to UNPROCESSED or compensate the graph with EQ. Capture-source behavior remains vendor-dependent. Precise latency alignment, custom routing and resampling are outside current scope.
 - No reference input or calibrated SPL. Display relative de-pink dB. File import/export and persistent audio recording are not implemented.
-- Only log-Gaussian smoothing is supported. RTA uses 1/3-, 1/6- or 1/12-octave rows, not an arbitrary bar count.
+- Only log-Gaussian smoothing is supported. RTA displays 1/3- and 1/6-octave rows as bars, and the 1/12-octave row as a line. Do not add a 1/128 option: the user meant 1/12 and rejected the much denser grid.
 - The graph occupies the main screen. PNG branding overlays the upper left; landscape controls form a vertical column over the upper right. Preserve Android safe areas on all four sides, including navigation bars and cutouts.
 - X is fixed at 20–20000 Hz with a logarithmic grid. Y pans and zooms. Its vertical label includes the mode (`RTA dB` / `Spectrum dB`); `Hz` is centered below X.
-- Tap/horizontal drag selects the nearest measured frequency. Vertical drag pans Y; pinch zooms; double-tap resets Y and clears the cursor.
+- Tap/horizontal drag selects the nearest measured frequency. While RTA runs, the cursor automatically follows the maximum measured bin and retains the last maximum after stop, even if a manual cursor existed before the run. Vertical drag pans Y; pinch zooms; double-tap resets Y and clears the cursor.
 - Restricted bands are shaded. Spectrum progress deliberately approximates the sweep by interpolating between log-frequency endpoints over the configured duration. Do not add precise playback synchronization for this indicator.
 - No persistent status row, sample count or `de-pink` caption. Errors remain visible when relevant.
-- Numeric settings use compact sliders. The user accepted the existing ranges for v0.2. Welch controls display seconds but retain exact sample counts and power-of-two window choices internally, preserving stored settings.
+- Numeric settings use compact sliders. Spectrum smoothing is 0.1–1.0 octave; loading clamps older saved smoothing values into this range without discarding other settings. Welch controls display seconds but retain exact sample counts and power-of-two window choices internally, preserving stored settings. Settings open immediately on tap while audio shutdown continues asynchronously.
 
 ## DSP contract
 
@@ -66,13 +67,13 @@ Native paths below are relative to `android/app/src/main/java/com/bm/spectrum/`.
 2. Calculate one-sided PSD, normalized by sample rate and window energy. Double interior bins only; handle DC and Nyquist correctly.
 3. Apply de-pink as `power * f` (equivalent to `amplitude * sqrt(f)`) before smoothing in both modes. Desktop RTA compensates after smoothing and uses a 1 kHz reference, so absolute levels may differ. Do not silently change normalization to make graphs match visually.
 4. Gaussian smoothing follows desktop `audioanalysis/smoothing.py`: FWHM in octaves, −30 dB support, `1/f` integration weights and clipping to the measurement band. Empty sub-resolution bands use the −200 dB floor.
-5. RTA centers follow the IEC 61260 base-10 grid around 1 kHz. Even denominators have a half-step offset. Include bands whose edges intersect the measurement range, retaining the nominal 20 Hz band. FWHM is grid spacing, `log2(10^(0.3 / fraction))`, independent of the selected band. This is Gaussian smoothing on a standard grid, not an IEC-compliant filter bank.
+5. RTA centers follow the base-10 fractional-octave grid around 1 kHz. Even denominators have a half-step offset. Include bands whose edges intersect the measurement range, retaining the nominal 20 Hz band. FWHM is grid spacing, `log2(10^(0.3 / fraction))`, independent of the selected band. This is Gaussian smoothing on a logarithmic grid, not an IEC-compliant filter bank.
 6. Welch averages complete overlapping frames in linear power for live preview. Spectrum always stores PCM and finishes with a periodogram of the entire actual capture, with a corresponding full-length Gaussian plan and rectangular temporal window. Early stop before a complete Welch frame still yields a final result if at least two samples were captured.
 7. Pink noise uses IFFT with desktop fourth-order band envelopes (−0.5 dB at requested edges) and peak normalization. `GENERATOR_FADE_SECONDS` is 0.5, not a UI setting. Pink fades at session boundaries, never at repeated-period boundaries. RTA noise period equals its window width. Chirp extends the log sweep by 0.5 s on each side of the working duration and fades those extensions linearly. Unlike the desktop rejection of an above-Nyquist extension, Android holds the tail frequency at 0.49 × sample rate once reached, with continuous phase, so the default 20 kHz band remains usable at 48 kHz. Full Spectrum capture includes both fades; progress subtracts the initial fade. Manual stop drains the playback fade before releasing the track.
 
 `GaussianPlan` fuses normalized Gaussian weights, the Jacobian and de-pink into reusable rows. `PlanKey` includes FFT length, sample rate, band, point count, FWHM, temporal-window selection and octave fraction. `PlanCache` is an LRU capped at four plans / 64 MiB, with a 48 MiB per-plan guard. Build expensive plans before opening the microphone; preserve cache reuse across measurements. FFT objects, temporal windows and work arrays are reused within a measurement.
 
-Capture, analysis and playback run on separate workers. A bounded PCM queue separates recording from analysis; report overload instead of silently dropping samples. Online Welch uses ring buffers and running power averages. Preserve orderly resource release and stop behavior on all paths.
+Capture, analysis and playback run on separate workers. Spectrum retains its bounded PCM queue and reports overload rather than dropping samples, because its final result uses the complete recording. RTA writes into `LatestWindow`; the analyzer snapshots only the newest complete window after each hop, skipping missed hops when processing is slow. Do not queue RTA frames or mix old and new blocks after a drop. Online Welch uses ring buffers and running power averages. Preserve orderly resource release and stop behavior on all paths.
 
 For a full-recording Spectrum plan exceeding the 48 MiB weight budget, evaluate the exact Gaussian rows on demand without retaining a coefficient matrix. This bounds memory for long recordings; it trades final-analysis time for memory. RTA/Welch continue caching their weights. `Measurement` prepares both stream and final analyzers before opening audio.
 
@@ -80,7 +81,7 @@ For a full-recording Spectrum plan exceeding the 48 MiB weight budget, evaluate 
 
 Keep `src/model.ts`, `src/settings-controls.ts`, native `Settings.kt` and `SpectrumPlugin.kt` parsing consistent when changing settings. Validate dependent values such as hop/window size and Welch window/recording duration.
 
-Settings use `bm-settings-v2` local storage. Loading migrates known v1 fields and maps old RTA counts 32/64/128 to fractions 3/6/12. Removed generator type/gain fields are not carried over. Preserve users' saved settings during development and device checks.
+Settings use `bm-settings-v2` local storage. Loading migrates known v1 fields and maps old RTA counts 32/64/128 to fractions 3/6/12. It also maps any briefly saved 1/128 setting to 1/12 after the user corrected that option. Removed generator type/gain fields are not carried over. Preserve users' saved settings during development and device checks.
 
 The bridge exposes `start`, `stop`, `getState` and `state`/`plot` events. Internal elapsed/frame/cache counters support processing and diagnostics; do not restore the removed status row merely because those values exist. `getState` also exposes the requested screen-awake flag for device checks.
 

@@ -9,6 +9,9 @@ export default function Chart({ data, settings, running, elapsed, sweepLead }: {
   const [size,setSize]=useState({width:300,height:600});
   const [range,setRange]=useState({top:10,span:100});
   const [cursor,setCursor]=useState<number|null>(null);
+  const peakCursor=running && settings.mode==='RTA' && data?.db.length
+    ? data.frequency[data.db.reduce((best,level,i)=>level>data.db[best]?i:best,0)] : null;
+  useEffect(()=>{if(peakCursor!==null) setCursor(peakCursor);},[peakCursor]);
   const pointers=useRef(new Map<number,{x:number;y:number}>());
   const last=useRef<{y:number;distance:number}|null>(null);
   const drag=useRef<{x:number;y:number;mode:'pending'|'cursor'|'pan'|'pinch'}|null>(null);
@@ -64,7 +67,7 @@ export default function Chart({ data, settings, running, elapsed, sweepLead }: {
     }
     if(data?.frequency.length) {
       const f=data.frequency;
-      if(settings.mode==='RTA') {
+      if(settings.mode==='RTA' && settings.rtaFraction!==12) {
         const ratio=10**(0.3/(2*settings.rtaFraction));
         for(let i=0;i<f.length;i++) {
           const a=x(Math.max(settings.low,f[i]/ratio)),b=x(Math.min(settings.high,f[i]*ratio));
@@ -83,11 +86,11 @@ export default function Chart({ data, settings, running, elapsed, sweepLead }: {
       ctx.fillStyle='#a6ebce';ctx.fillRect(start,bottom-4,head-start,4);
     }
     ctx.restore();
-    if(cursor!==null) {
-      let frequency=cursor,db:number|undefined;
+    if(cursor!==null || peakCursor!==null) {
+      let frequency=peakCursor??cursor!,db:number|undefined;
       if(data?.frequency.length) {
         let best=0;
-        for(let i=1;i<data.frequency.length;i++) if(Math.abs(Math.log(data.frequency[i]/cursor))<Math.abs(Math.log(data.frequency[best]/cursor)))best=i;
+        for(let i=1;i<data.frequency.length;i++) if(Math.abs(Math.log(data.frequency[i]/frequency))<Math.abs(Math.log(data.frequency[best]/frequency)))best=i;
         frequency=data.frequency[best];db=data.db[best];
       }
       const xx=Math.max(left,Math.min(right,x(frequency)));
@@ -101,7 +104,7 @@ export default function Chart({ data, settings, running, elapsed, sweepLead }: {
       ctx.fillStyle='#e8c78e';ctx.textAlign='left';ctx.fillText(label,labelX+8,labelY+15);
       node.setAttribute('data-cursor-frequency',String(frequency));node.setAttribute('data-cursor-db',db===undefined?'':String(db));
     } else {node.removeAttribute('data-cursor-frequency');node.removeAttribute('data-cursor-db');}
-  },[size,range,data,settings,cursor,running,progress]);
+  },[size,range,data,settings,cursor,peakCursor,running,progress]);
   const pick=(clientX:number)=>{
     const local=clientX-canvas.current!.getBoundingClientRect().left;
     const fraction=Math.max(0,Math.min(1,(local-LEFT)/(size.width-LEFT-RIGHT)));

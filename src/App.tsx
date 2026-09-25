@@ -44,10 +44,10 @@ export default function App() {
     try {setState(await fn());} catch(e) {setError(e instanceof Error ? e.message : String(e));}
     finally {setBusy(false);}
   }
-  async function openSettings() {
+  function openSettings() {
     if(busy) return;
-    if(state.running || state.generating) await action(()=>Spectrum.stop());
     setDraft({...settings}); setShowSettings(true); setError('');
+    if(state.running || state.generating) void action(()=>Spectrum.stop());
   }
   function save() {
     const problem=validate(draft); if(problem) {setError(problem);return;}
@@ -78,7 +78,7 @@ export default function App() {
     <nav className="controls" aria-label="Measuring">
       <button className={`icon-button primary ${state.running ? 'active' : ''}`} disabled={busy} aria-busy={busy} aria-label={state.running?'Stop measurement':'Start measurement'} title="Play / Stop" onClick={()=>void action(()=>{if(state.running) return Spectrum.stop();setData(null);return Spectrum.start({settings});})}><Icon kind={state.running?'stop':'play'}/></button>
       <button className={`icon-button ${settings.generatorEnabled?'active':''}`} disabled={busy} aria-label="Use generator" aria-pressed={settings.generatorEnabled} title="Use generator with measurement" onClick={toggleGenerator}><Icon kind="generator"/></button>
-      <button className="icon-button" disabled={busy} aria-label="Settings" onClick={()=>void openSettings()}><Icon kind="settings"/></button>
+      <button className="icon-button" disabled={busy} aria-label="Settings" onClick={openSettings}><Icon kind="settings"/></button>
     </nav>
     {(error||state.error) && !showSettings && <div className="error" role="alert">{error||state.error}</div>}
     {showSettings && <section className="settings" aria-label="Settings"><div className="settings-header"><button onClick={()=>{setShowSettings(false);setError('');}} aria-label="Back">←</button><h1>Settings</h1><button className="save" onClick={save}>Done</button></div>

@@ -24,6 +24,7 @@ class AudioEngine(private val audioManager: AudioManager, private val changed: (
         val done = AtomicBoolean(false)
         val queue = ArrayBlockingQueue<Pair<FloatArray, Int>>(128)
         val pool = ArrayBlockingQueue<FloatArray>(130).apply { repeat(130) { add(FloatArray(1024)) } }
+        var latest: LatestWindow? = null
         @Volatile var record: AudioRecord? = null
         var reader: Thread? = null
         var processor: Thread? = null
@@ -41,6 +42,7 @@ class AudioEngine(private val audioManager: AudioManager, private val changed: (
         val measurement = Measurement(settings, rate, cache, plot)
         val total = measurement.total
         val s = Session()
+        if (settings.mode == "RTA") s.latest = LatestWindow((settings.rtaWidth * rate).roundToInt(), (settings.rtaHop * rate).roundToInt())
         val period = if (!settings.generatorEnabled) null else if (settings.mode == "RTA")
             Generators.pink((settings.rtaWidth * rate).roundToInt(), rate, settings.low, settings.high, 0.9)
         else Sweep(settings.duration, rate, settings.low, settings.high).signal()
@@ -88,7 +90,17 @@ class AudioEngine(private val audioManager: AudioManager, private val changed: (
         s.processor = thread(name = "BM-analysis") {
             try {
                 var lastStatus = 0L
-                while (!s.done.get() || s.queue.isNotEmpty()) {
+                if (settings.mode == "RTA") {
+                    var lastProcessed = 0L
+                    while (!s.done.get()) {
+                        val snapshot = s.latest!!.newestAfter(lastProcessed)
+                        if (snapshot == null) { Thread.sleep(10); continue }
+                        measurement.pushLatest(snapshot)
+                        lastProcessed = snapshot.captured
+                        elapsed = measurement.elapsed; frames = measurement.frames
+                        if (System.nanoTime() - lastStatus > 200_000_000L) { changed(); lastStatus = System.nanoTime() }
+                    }
+                } else while (!s.done.get() || s.queue.isNotEmpty()) {
                     val (block, count) = s.queue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS) ?: continue
                     measurement.push(block, count)
                     elapsed = measurement.elapsed; frames = measurement.frames
@@ -108,15 +120,17 @@ class AudioEngine(private val audioManager: AudioManager, private val changed: (
         }
         s.reader = thread(name = "BM-record") {
             var captured = 0
+            val rtaBlock = if (settings.mode == "RTA") FloatArray(1024) else null
             try {
                 while (!s.stop.get() && (settings.mode == "RTA" || captured < total)) {
-                    val block = s.pool.poll() ?: error("Analysis cannot keep up with recording")
+                    val block = rtaBlock ?: (s.pool.poll() ?: error("Analysis cannot keep up with recording"))
                     val wanted = if (settings.mode == "Spectrum") min(block.size, total-captured) else block.size
                     val count = recorder.read(block, 0, wanted, AudioRecord.READ_BLOCKING)
-                    if (count < 0) { s.pool.offer(block); if (!s.stop.get()) error("AudioRecord error: $count"); break }
-                    if (count == 0) { s.pool.offer(block); continue }
+                    if (count < 0) { if (rtaBlock == null) s.pool.offer(block); if (!s.stop.get()) error("AudioRecord error: $count"); break }
+                    if (count == 0) { if (rtaBlock == null) s.pool.offer(block); continue }
                     captured += count
-                    if (!s.queue.offer(block to count)) { s.pool.offer(block); error("Analysis cannot keep up with recording; increase hop") }
+                    if (rtaBlock != null) s.latest!!.add(block, count)
+                    else if (!s.queue.offer(block to count)) { s.pool.offer(block); error("Analysis cannot keep up with recording; increase hop") }
                 }
             } catch (e: Exception) { if (!s.stop.get()) fail(e.message ?: "Recording failed") }
             finally {

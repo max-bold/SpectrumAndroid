@@ -25,7 +25,7 @@ export function validate(s: Settings): string {
   if (s.mode !== 'RTA' && s.mode !== 'Spectrum') return 'Unknown mode';
   if (s.low < 20 || s.high > 20000 || s.high <= s.low) return 'Band: 20–20000 Hz; low must be below high';
   if (s.duration < 0.5 || s.duration > 30) return 'Duration: 0.5–30 s';
-  if (s.smoothing < 0.03 || s.smoothing > 2) return 'Smoothing: 0.03–2 oct';
+  if (s.smoothing < 0.1 || s.smoothing > 1) return 'Smoothing: 0.1–1 oct';
   if (!Number.isInteger(s.spectrumPoints) || s.spectrumPoints < 32 || s.spectrumPoints > 1024) return 'Spectrum: 32–1024 points';
   if (!Number.isInteger(s.welchSize) || s.welchSize < 1024 || s.welchSize > 262144 || (s.welchSize & (s.welchSize - 1)) !== 0) return 'Welch size: power of two, 1024–262144';
   if (!Number.isInteger(s.welchHop) || s.welchHop < 1 || s.welchHop > s.welchSize) return 'Welch hop: 1–window size';
@@ -41,6 +41,8 @@ export function loadSettings(): Settings {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || localStorage.getItem('bm-settings-v1') || '{}');
     const s = Object.fromEntries(Object.entries(defaults).map(([key,value])=>[key,saved[key] ?? value])) as Settings;
     if (!saved.rtaFraction && saved.rtaPoints) s.rtaFraction = saved.rtaPoints <= 32 ? 3 : saved.rtaPoints <= 64 ? 6 : 12;
+    if (s.rtaFraction === 128) s.rtaFraction = 12;
+    if (Number.isFinite(s.smoothing)) s.smoothing = Math.max(0.1,Math.min(1,s.smoothing));
     return validate(s) ? {...defaults} : s;
   } catch { return {...defaults}; }
 }

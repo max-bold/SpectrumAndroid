@@ -21,7 +21,7 @@ data class Settings(
         require(mode in listOf("RTA", "Spectrum")) { "Unknown mode" }
         require(low.isFinite() && high.isFinite() && low >= 20 && high <= 20000 && high > low && high < sampleRate / 2) { "Band: 20–20000 Hz; low must be below high" }
         require(duration.isFinite() && duration in 0.5..30.0) { "Duration: 0.5–30 s" }
-        require(smoothing.isFinite() && smoothing in 0.03..2.0) { "Smoothing: 0.03–2 oct" }
+        require(smoothing.isFinite() && smoothing in 0.1..1.0) { "Smoothing: 0.1–1 oct" }
         require(spectrumPoints in 32..1024) { "Spectrum: 32–1024 points" }
         require(welchSize in 1024..262144 && welchSize and (welchSize - 1) == 0) { "Welch size: power of two, 1024–262144" }
         require(welchHop in 1..welchSize) { "Welch hop: 1–window size" }
