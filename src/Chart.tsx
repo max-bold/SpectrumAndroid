@@ -67,7 +67,7 @@ export default function Chart({ data, settings, running, elapsed, sweepLead }: {
     }
     if(data?.frequency.length) {
       const f=data.frequency;
-      if(settings.mode==='RTA' && settings.rtaFraction!==12) {
+      if(settings.mode==='RTA' && settings.rtaFraction<=12) {
         const ratio=10**(0.3/(2*settings.rtaFraction));
         for(let i=0;i<f.length;i++) {
           const a=x(Math.max(settings.low,f[i]/ratio)),b=x(Math.min(settings.high,f[i]*ratio));

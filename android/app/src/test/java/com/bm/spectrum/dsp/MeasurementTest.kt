@@ -6,6 +6,30 @@ import org.junit.Test
 
 class MeasurementTest {
     private val rate = 48000
+    @Test fun rtaDensePresetsUseLogarithmicPointsAndRequestedSmoothing() {
+        for ((count, width) in listOf(512 to 0.3, 1024 to 0.15)) {
+            val settings = Settings(low=100.0, high=10000.0, rtaWidth=0.1, rtaHop=0.1,
+                rtaFraction=count)
+            settings.validate(rate)
+            assertEquals(count, settings.points())
+            assertEquals(width, settings.width(), 0.0)
+            assertEquals(0, settings.rtaOctaveFraction())
+            val plots = mutableListOf<MeasurementPlot>()
+            val measurement = Measurement(settings, rate, PlanCache(), plots::add)
+            val pcm = input(4800)
+            measurement.push(pcm, pcm.size)
+            measurement.finish()
+            val result = plots.last()
+            assertEquals(count, result.frequency.size)
+            assertEquals(count, result.db.size)
+            assertEquals(settings.low, result.frequency.first(), 1e-10)
+            assertEquals(settings.high, result.frequency.last(), 1e-8)
+            assertTrue(result.db.all { it.isFinite() })
+        }
+        val octave = Settings(rtaFraction=12)
+        assertEquals(12, octave.rtaOctaveFraction())
+        assertEquals(121, octave.points())
+    }
     @Test fun rtaAndFinalSpectrumAgreeForTheSamePeriodicPinkRecording() {
         val random = java.util.Random(23092026)
         val period = Generators.pink(rate, rate, 20.0, 20000.0, 0.9,

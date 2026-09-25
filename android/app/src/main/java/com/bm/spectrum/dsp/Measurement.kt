@@ -35,7 +35,7 @@ class Measurement(private val settings: Settings, private val rate: Int, private
     private val finalKey = PlanKey(total, rate, settings.low, settings.high, settings.spectrumPoints, settings.smoothing, false)
     private val streamSize = if (!spectrum) (settings.rtaWidth * rate).roundToInt() else settings.welchSize
     private val streamKey = PlanKey(streamSize, rate, settings.low, settings.high, settings.points(), settings.width(),
-        if (spectrum) true else !settings.generatorEnabled, if (spectrum) 0 else settings.rtaFraction)
+        if (spectrum) true else !settings.generatorEnabled, if (spectrum) 0 else settings.rtaOctaveFraction())
     private val streamAnalyzer = if (!spectrum || settings.onlineWelch) Analyzer(streamKey, cache) else null
     private val finalAnalyzer = if (spectrum) Analyzer(finalKey, cache) else null
     private val recording = if (spectrum) DoubleArray(total) else null

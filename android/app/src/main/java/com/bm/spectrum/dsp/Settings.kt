@@ -27,9 +27,16 @@ data class Settings(
         require(welchHop in 1..welchSize) { "Welch hop: 1–window size" }
         require(rtaWidth.isFinite() && rtaWidth in 0.1..10.0) { "RTA window: 0.1–10 s" }
         require(rtaHop.isFinite() && rtaHop in 0.02..rtaWidth) { "RTA hop: 0.02 s–window width" }
-        require(rtaFraction in listOf(3, 6, 12)) { "RTA: 1/3, 1/6 or 1/12 octave" }
+        require(rtaFraction in listOf(3, 6, 12, 512, 1024)) { "RTA: 1/3, 1/6, 1/12, 512/0.3 or 1024/0.15" }
         if (mode == "Spectrum" && onlineWelch) require(welchSize <= (duration * sampleRate).roundToInt()) { "Welch window exceeds recording duration" }
     }
-    fun points() = if (mode == "RTA") OctaveBands.centers(low, high, rtaFraction).size else spectrumPoints
-    fun width() = if (mode == "RTA") log2(10.0.pow(0.3 / rtaFraction)) else smoothing
+    // The two dense presets reuse the stored selector but use logarithmic point grids.
+    fun rtaOctaveFraction() = if (rtaFraction in listOf(3, 6, 12)) rtaFraction else 0
+    fun points() = if (mode != "RTA") spectrumPoints else if (rtaOctaveFraction() > 0)
+        OctaveBands.centers(low, high, rtaFraction).size else rtaFraction
+    fun width() = if (mode != "RTA") smoothing else when (rtaFraction) {
+        512 -> 0.3
+        1024 -> 0.15
+        else -> log2(10.0.pow(0.3 / rtaFraction))
+    }
 }

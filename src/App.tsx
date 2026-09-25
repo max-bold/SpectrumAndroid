@@ -88,7 +88,10 @@ export default function App() {
         <div className="settings-group"><h2>{draft.mode}</h2>
         {draft.mode==='RTA' ? <>
           {field('rtaWidth','Window width','s')}{field('rtaHop','Hop','s')}
-          <label className="field"><span>Octave bands</span><select aria-label="Octave bands" value={draft.rtaFraction} onChange={e=>setDraft({...draft,rtaFraction:Number(e.target.value)})}>{[3,6,12].map(n=><option key={n} value={n}>1/{n} octave</option>)}</select></label>
+          <label className="field"><span>RTA detail</span><select aria-label="RTA detail" value={draft.rtaFraction} onChange={e=>setDraft({...draft,rtaFraction:Number(e.target.value)})}>
+            {[3,6,12].map(n=><option key={n} value={n}>1/{n} octave</option>)}
+            <option value={512}>512 / 0.3 oct</option><option value={1024}>1024 / 0.15 oct</option>
+          </select></label>
         </> : <>
           {field('duration','Duration','s')}{field('smoothing','Smoothing','oct')}{field('spectrumPoints','Point count','')}
           <label className="field"><span>Online Welch</span><input aria-label="Online Welch" className="switch" type="checkbox" checked={draft.onlineWelch} onChange={e=>setDraft(updateNumeric({...draft,onlineWelch:e.target.checked},'duration',draft.duration))}/></label>

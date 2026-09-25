@@ -12,7 +12,7 @@ For meaningful acoustic measurements, use an external measurement microphone. A 
 
 ## Measurement modes
 
-- **RTA** displays continuously updated 1/3- or 1/6-octave bars, or a line with 1/12-octave spacing. Choose the analysis window and update interval.
+- **RTA** displays continuously updated 1/3-, 1/6- or 1/12-octave bars. Two line modes provide 512 points with 0.3-octave smoothing or 1024 points with 0.15-octave smoothing. Choose the analysis window and update interval.
 - **Spectrum** records a measurement of a chosen duration and displays a smooth spectrum curve. Online Welch provides a live preview; the final result always uses a periodogram of the entire recording, including when stopped early.
 
 Both modes use BM Spectrum's log-Gaussian smoothing and fixed de-pink correction. Levels are relative dB, not calibrated sound pressure levels (SPL).

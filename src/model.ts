@@ -32,7 +32,7 @@ export function validate(s: Settings): string {
   if (s.mode === 'Spectrum' && s.onlineWelch && s.welchSize > Math.round(s.duration * 48000)) return 'Welch window exceeds recording duration';
   if (s.rtaWidth < 0.1 || s.rtaWidth > 10) return 'RTA window: 0.1–10 s';
   if (s.rtaHop < 0.02 || s.rtaHop > s.rtaWidth) return 'RTA hop: 0.02 s–window width';
-  if (![3,6,12].includes(s.rtaFraction)) return 'RTA: 1/3, 1/6 or 1/12 octave';
+  if (![3,6,12,512,1024].includes(s.rtaFraction)) return 'RTA: 1/3, 1/6, 1/12, 512/0.3 or 1024/0.15';
   return '';
 }
 export const SETTINGS_KEY = 'bm-settings-v2';
