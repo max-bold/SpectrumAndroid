@@ -53,3 +53,4 @@
 ## v0.3
 
 - [ ] Phone mic calibration
+- [ ] IO device selection
