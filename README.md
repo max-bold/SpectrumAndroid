@@ -72,9 +72,9 @@ The existing slider ranges are retained for v0.2. Welch controls show seconds wh
 
 ## Current scope
 
-Capture and playback use standard Android audio at mono 48 kHz; Android handles routing and resampling. This version has no reference channel, calibrated SPL, file import/export or saved audio recordings. Spectrum capture is analyzed in memory. The octave frequency grid is standard, but analysis uses Gaussian smoothing rather than an IEC-certified filter bank.
+Capture and analysis use standard Android audio at mono 48 kHz; Android handles routing and resampling. On Android 14+, supported USB outputs use a 48 kHz, 16-bit stereo mixer for simultaneous playback and recording, with the same generator signal on both channels. This version has no reference channel, calibrated SPL, file import/export or saved audio recordings. Spectrum capture is analyzed in memory. The octave frequency grid is standard, but analysis uses Gaussian smoothing rather than an IEC-certified filter bank.
 
-Numerical DSP tests and device checks have passed on a V2529 running Android 16. External-input spectrum slope and physical generator-output verification remain on the [roadmap](TODO.md).
+Numerical DSP tests and device checks have passed on a V2529 running Android 16. USB loopback with a Creative SB X-Fi Surround 5.1 Pro verifies playback and capture of both generators. USB capture uses a separate Android recording mode to avoid the low-frequency filtering observed on this phone. Loopback tones measured approximately -0.09 dB at 20 Hz and -0.52 dB at 20 kHz relative to 1 kHz; compatibility with other phones and interfaces still depends on their audio drivers. Broader external-input spectrum slope and generator-output characterization remain on the [roadmap](TODO.md).
 
 ## Build and install
 

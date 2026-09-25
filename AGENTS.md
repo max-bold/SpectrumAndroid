@@ -23,16 +23,20 @@ Native paths below are relative to `android/app/src/main/java/com/bm/spectrum/`.
 | Native `MainActivity.java` | Capacitor activity and plugin registration |
 | Native `SpectrumPlugin.kt` | Permissions, serialized control calls, events and screen-awake flag |
 | Native `AudioEngine.kt` | Recording/playback sessions, worker threads, queueing and shutdown |
+| Native `MeasurementInput.kt` | Shared recorder setup and USB-specific capture source |
+| Native `GeneratorOutput.kt` | Playback format, USB duplex mixer compatibility and mono-to-stereo PCM16 conversion |
 | Native `dsp/Dsp.kt` | Gaussian plans/cache, FFT analysis, streaming frames, power averaging and generators |
 | Native `dsp/Measurement.kt` | Welch preview/full-recording final analysis, extended sweep and fade constant |
 | Native `dsp/OctaveBands.kt` | Base-10 fractional-octave center frequencies |
 | Native `dsp/Settings.kt` | Native defaults, validation, point counts and smoothing width |
 | `android/app/src/test/java/com/bm/spectrum/dsp/DspTest.kt` | Numerical regression tests |
+| `android/app/src/androidTest/java/com/bm/spectrum/UsbInputResponseTest.kt` | Opt-in physical USB response test, using production input/output setup |
 | `android/app/src/test/resources/reference.json` | Desktop/NumPy/SciPy reference vectors |
 | `scripts/android.ps1` | Local JDK/SDK discovery and Gradle wrapper invocation |
 | `scripts/reference_fixtures.py` | Regenerates reference vectors using desktop code |
 | `scripts/webview.mjs` | ADB forwarding and WebView DevTools helpers |
 | `scripts/device-smoke.mjs` | Real-device checks; restores saved settings afterward |
+| `scripts/usb-loopback.mjs` | Physical USB Line Out-to-Line In regression; leaves saved settings and volume unchanged |
 | `capacitor.config.ts` | App identity, web directory and system-bar configuration |
 | `logo/` | Supplied branding; UI imports `White@4x.png` |
 | `screenshots/` | User-facing screenshots referenced by README |
@@ -46,7 +50,7 @@ Native paths below are relative to `android/app/src/main/java/com/bm/spectrum/`.
 - Generator choice follows mode: Spectrum uses one logarithmic chirp; RTA repeats IFFT pink noise. There is no separate generator selector or gain setting.
 - The generator button arms playback for the next measurement. It does not independently start or stop sound. Peak amplitude is 0.9 (approximately −1 dBFS); Android media volume controls loudness.
 - Measurement and playback share a session. Manual stop, automatic completion, opening settings and backgrounding stop audio. Keep the screen awake only while measuring; there is no background service.
-- Use standard `AudioRecord` and `AudioTrack`, mono 48 kHz float PCM. Both RTA and Spectrum request `MediaRecorder.AudioSource.UNPROCESSED` through the shared recorder setup. Request it even when the device support property is false, as agreed; this does not guarantee bypassing vendor processing on such devices. Precise latency alignment, custom routing and resampling are outside current scope.
+- Use standard `AudioRecord` and `AudioTrack`, mono 48 kHz float PCM for capture, DSP and default playback. For USB outputs on Android 14+, request a supported DEFAULT mixer at 48 kHz stereo PCM16 and match AudioTrack to it; duplicate the mono generator into both channels with unity gain. This fixes duplex failure on V2529 / Creative SB X-Fi Surround 5.1 Pro: changing AudioTrack format alone did not fix the default vendor mixer. Clear the app's mixer preference after releasing playback, including startup failures. Keep Android media volume; do not use BIT_PERFECT. Unsupported mixer configurations and older Android versions retain default playback. Both RTA and Spectrum use `MeasurementInput`: USB device/headset inputs request `VOICE_RECOGNITION` and select that USB input with `setPreferredDevice`; other inputs retain `UNPROCESSED`, even when its support property is false. On V2529, USB UNPROCESSED applies an undocumented high-pass (20 Hz: -52 dB; 50 Hz: -15 dB) with no reported AudioEffect; VOICE_RECOGNITION removes it (20 Hz: -0.09 dB). Do not blindly switch USB back to UNPROCESSED or compensate the graph with EQ. Capture-source behavior remains vendor-dependent. Precise latency alignment, custom routing and resampling are outside current scope.
 - No reference input or calibrated SPL. Display relative de-pink dB. File import/export and persistent audio recording are not implemented.
 - Only log-Gaussian smoothing is supported. RTA uses 1/3-, 1/6- or 1/12-octave rows, not an arbitrary bar count.
 - The graph occupies the main screen. PNG branding overlays the upper left; landscape controls form a vertical column over the upper right. Preserve Android safe areas on all four sides, including navigation bars and cutouts.
@@ -102,6 +106,18 @@ node scripts/device-smoke.mjs
 ```
 
 The smoke script needs the debug app in the foreground and microphone permission granted. It briefly emits both signals at peak 0.9. It checks real capture, generator arming/shutdown, octave grids, cache reuse, cursor, Y pan, settings and background stop. Reports/screenshots go into ignored `test-results/`. `ADB` overrides the script's executable path. Restore device settings after orientation or other system tests.
+
+For a connected USB interface with Line Out wired to Line In, `node scripts/usb-loopback.mjs` checks both generators and session shutdown. The opt-in hardware instrumentation test measures 11 equal-amplitude tones directly in captured PCM before DSP, asserting response within 1 dB of 1 kHz from 20 Hz to 20 kHz. Use a known-flat interface, grant microphone permission, and run:
+
+```powershell
+./scripts/android.ps1 -Tasks ':app:assembleDebug',':app:assembleDebugAndroidTest'
+& C:/platform-tools/adb.exe install -r android/app/build/outputs/apk/debug/app-debug.apk
+& C:/platform-tools/adb.exe install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+& C:/platform-tools/adb.exe shell am instrument -w -e usbLoopback true -e class com.bm.spectrum.UsbInputResponseTest com.bm.spectrum.test/androidx.test.runner.AndroidJUnitRunner
+& C:/platform-tools/adb.exe logcat -d -s BM-USB-response:I '*:S'
+```
+
+Without `usbLoopback=true` the hardware response test is skipped. It emits test tones, launches the app for foreground capture, and leaves saved settings and media volume unchanged. This verifies the combined loopback path; it does not independently characterize the ADC and DAC.
 
 Numerical tests compare Kotlin results with NumPy/SciPy and desktop Gaussian references: odd/even FFT sizes, DC/Nyquist, reused buffers, streaming Welch overlap and octave/cache behavior. Regenerate fixtures only for an intentional DSP contract change, never to hide a regression:
 

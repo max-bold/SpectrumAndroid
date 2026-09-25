@@ -12,7 +12,7 @@ class SpectrumPlugin : Plugin() {
     private val control = Executors.newSingleThreadExecutor()
     private lateinit var engine: AudioEngine
     override fun load() {
-        engine = AudioEngine({
+        engine = AudioEngine(context.getSystemService(android.media.AudioManager::class.java), {
             activity.runOnUiThread {
                 if (engine.running) activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 else activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

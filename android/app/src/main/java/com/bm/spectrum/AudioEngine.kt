@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import kotlin.math.*
 
-class AudioEngine(private val changed: () -> Unit, private val plot: (MeasurementPlot) -> Unit) {
+class AudioEngine(private val audioManager: AudioManager, private val changed: () -> Unit, private val plot: (MeasurementPlot) -> Unit) {
     val rate = 48000
     val cache = PlanCache()
     @Volatile var running = false; private set
@@ -28,7 +28,7 @@ class AudioEngine(private val changed: () -> Unit, private val plot: (Measuremen
         var reader: Thread? = null
         var processor: Thread? = null
         var writer: Thread? = null
-        @Volatile var track: AudioTrack? = null
+        @Volatile var output: GeneratorOutput? = null
     }
 
     @Synchronized fun start(settings: Settings) {
@@ -44,33 +44,15 @@ class AudioEngine(private val changed: () -> Unit, private val plot: (Measuremen
         val period = if (!settings.generatorEnabled) null else if (settings.mode == "RTA")
             Generators.pink((settings.rtaWidth * rate).roundToInt(), rate, settings.low, settings.high, 0.9)
         else Sweep(settings.duration, rate, settings.low, settings.high).signal()
-        val minimum = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
-        check(minimum > 0) { "Recording format is unavailable" }
-        // Both modes request the same raw capture path; vendor processing may remain
-        // on devices that do not declare UNPROCESSED support.
-        val recorder = try { AudioRecord.Builder().setAudioSource(MediaRecorder.AudioSource.UNPROCESSED)
-            .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setSampleRate(rate).setChannelMask(AudioFormat.CHANNEL_IN_MONO).build())
-            .setBufferSizeInBytes(max(minimum * 4, rate * 4)).build()
-        } catch (e: SecurityException) {
-            throw IllegalStateException("Microphone access was revoked. Enable it in Android settings.", e)
-        }
-        if (recorder.state != AudioRecord.STATE_INITIALIZED) { recorder.release(); error("Microphone is unavailable") }
+        val recorder = MeasurementInput.open(audioManager, rate)
         try {
-            if (period != null) {
-                val buffer = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT)
-                check(buffer > 0) { "Playback format is unavailable" }
-                s.track = AudioTrack.Builder()
-                    .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
-                    .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_FLOAT).setSampleRate(rate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
-                    .setBufferSizeInBytes(max(buffer * 2, 8192)).setTransferMode(AudioTrack.MODE_STREAM).build()
-                check(s.track!!.state == AudioTrack.STATE_INITIALIZED) { "Audio output is unavailable" }
-            }
+            if (period != null) s.output = GeneratorOutput.open(audioManager, rate)
             recorder.startRecording()
-            s.track?.play()
-        } catch (e: Exception) { recorder.release(); s.track?.release(); throw e }
+            s.output?.track?.play()
+        } catch (e: Exception) { recorder.release(); s.output?.release(); throw e }
         s.record = recorder; session = s; running = true; generating = period != null; changed()
         if (period != null) s.writer = thread(name = "BM-generator") {
-            val output = s.track!!
+            val output = s.output!!
             try {
                 val fade = (GENERATOR_FADE_SECONDS * rate).roundToInt()
                 val block = FloatArray(1024)
@@ -89,22 +71,18 @@ class AudioEngine(private val changed: () -> Unit, private val plot: (Measuremen
                         stoppingAt?.let { gain *= 1 - fadeGain(p - it, fade) }
                         block[i] = (period[p % period.size] * gain).toFloat()
                     }
-                    var offset = 0
-                    while (offset < count) {
-                        val n = output.write(block, offset, count - offset, AudioTrack.WRITE_BLOCKING)
-                        check(n > 0) { "AudioTrack error: $n" }
-                        offset += n; written += n
-                    }
+                    output.write(block, count)
+                    written += count
                     position += count
                 }
                 // Drain the queued fade instead of flushing it away on stop.
                 val deadline = System.nanoTime() + 2_000_000_000L
-                while ((output.playbackHeadPosition.toLong() and 0xffffffffL) < written && System.nanoTime() < deadline) Thread.sleep(5)
+                while ((output.track.playbackHeadPosition.toLong() and 0xffffffffL) < written && System.nanoTime() < deadline) Thread.sleep(5)
             } catch (e: Exception) {
                 if (!s.stop.get()) { fail(e.message ?: "Generator failed"); signalStop(s) }
             } finally {
-                try { output.pause(); output.flush(); output.stop() } catch (_: Exception) { }
-                output.release(); s.track = null; generating = false; changed()
+                try { output.track.pause(); output.track.flush(); output.track.stop() } catch (_: Exception) { }
+                output.release(); s.output = null; generating = false; changed()
             }
         }
         s.processor = thread(name = "BM-analysis") {
