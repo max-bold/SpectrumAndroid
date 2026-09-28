@@ -29,15 +29,17 @@ data class MeasurementPlot(val frequency: DoubleArray, val db: DoubleArray, val 
 
 /** Welch is a preview only. Spectrum always retains PCM for a final full-recording periodogram. */
 class Measurement(private val settings: Settings, private val rate: Int, private val cache: PlanCache,
-                  private val emit: (MeasurementPlot) -> Unit) {
+                  private val calibration: CalibrationCurve?, private val emit: (MeasurementPlot) -> Unit) {
+    constructor(settings: Settings, rate: Int, cache: PlanCache, emit: (MeasurementPlot) -> Unit) :
+        this(settings, rate, cache, null, emit)
     val total = ((settings.duration + if (settings.mode == "Spectrum" && settings.generatorEnabled) 2 * GENERATOR_FADE_SECONDS else 0.0) * rate).roundToInt()
     private val spectrum = settings.mode == "Spectrum"
     private val finalKey = PlanKey(total, rate, settings.low, settings.high, settings.spectrumPoints, settings.smoothing, false)
     private val streamSize = if (!spectrum) (settings.rtaWidth * rate).roundToInt() else settings.welchSize
     private val streamKey = PlanKey(streamSize, rate, settings.low, settings.high, settings.points(), settings.width(),
         if (spectrum) true else !settings.generatorEnabled, if (spectrum) 0 else settings.rtaOctaveFraction())
-    private val streamAnalyzer = if (!spectrum || settings.onlineWelch) Analyzer(streamKey, cache) else null
-    private val finalAnalyzer = if (spectrum) Analyzer(finalKey, cache) else null
+    private val streamAnalyzer = if (!spectrum || settings.onlineWelch) Analyzer(streamKey, cache, calibration) else null
+    private val finalAnalyzer = if (spectrum) Analyzer(finalKey, cache, calibration) else null
     private val recording = if (spectrum) DoubleArray(total) else null
     private val average = PowerAverage(settings.points())
     private var lastPower: DoubleArray? = null
@@ -78,12 +80,15 @@ class Measurement(private val settings: Settings, private val rate: Int, private
         lastPower?.let { output(streamAnalyzer!!, it, if (spectrum) "welch" else "rta", lastMs) }
     }
     private fun output(analyzer: Analyzer, power: DoubleArray, kind: String, ms: Double) {
-        emit(MeasurementPlot(analyzer.plan.frequencies, DoubleArray(power.size) { 10 * log10(power[it].coerceAtLeast(1e-20)) }, elapsed, frames, ms, kind, analyzer.key.size))
+        val frequencies=analyzer.plan.frequencies
+        val indices=if(calibration==null) frequencies.indices.toList() else frequencies.indices.filter {frequencies[it] in settings.low..settings.high}
+        emit(MeasurementPlot(DoubleArray(indices.size){frequencies[indices[it]]},
+            DoubleArray(indices.size){10*log10(power[indices[it]].coerceAtLeast(1e-20))},elapsed,frames,ms,kind,analyzer.key.size))
     }
     fun finish() {
         if (recording == null) { publish(); return }
         if (samples < 2) return
-        val analyzer = if (samples == total) finalAnalyzer!! else Analyzer(finalKey.copy(size = samples), cache)
+        val analyzer = if (samples == total) finalAnalyzer!! else Analyzer(finalKey.copy(size = samples), cache, calibration)
         val start = System.nanoTime()
         val power = analyzer.analyze(if (samples == total) recording else recording.copyOf(samples))
         frames = 1

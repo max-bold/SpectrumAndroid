@@ -15,7 +15,8 @@ data class Settings(
     val rtaWidth: Double = 3.0,
     val rtaHop: Double = 0.1,
     val rtaFraction: Int = 3,
-    val generatorEnabled: Boolean = false
+    val generatorEnabled: Boolean = false,
+    val inputDeviceId: Int = -1
 ) {
     fun validate(sampleRate: Int = 48000) {
         require(mode in listOf("RTA", "Spectrum")) { "Unknown mode" }
@@ -28,6 +29,7 @@ data class Settings(
         require(rtaWidth.isFinite() && rtaWidth in 0.1..10.0) { "RTA window: 0.1–10 s" }
         require(rtaHop.isFinite() && rtaHop in 0.02..rtaWidth) { "RTA hop: 0.02 s–window width" }
         require(rtaFraction in listOf(3, 6, 12, 512, 1024)) { "RTA: 1/3, 1/6, 1/12, 512/0.3 or 1024/0.15" }
+        require(inputDeviceId >= -1) { "Invalid input device" }
         if (mode == "Spectrum" && onlineWelch) require(welchSize <= (duration * sampleRate).roundToInt()) { "Welch window exceeds recording duration" }
     }
     // The two dense presets reuse the stored selector but use logarithmic point grids.

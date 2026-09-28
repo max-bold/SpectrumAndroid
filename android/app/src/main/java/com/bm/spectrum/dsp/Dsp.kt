@@ -44,7 +44,7 @@ class GaussianPlan(val key: PlanKey) {
             var total = 0.0
             for (i in row.indices) {
                 val f = (a + i) * df
-                val w = exp(-4 * ln(2.0) * (log2(f / frequencies[p]) / key.width).pow(2)) / f
+                val w = gaussianLogWeight(f, frequencies[p], key.width)
                 row[i] = w
                 total += w
             }
@@ -62,7 +62,7 @@ class GaussianPlan(val key: PlanKey) {
                 var denominator = 0.0
                 for (k in starts[p] until ends[p]) {
                     val f = k * df
-                    val g = exp(-4 * ln(2.0) * (log2(f / frequencies[p]) / key.width).pow(2))
+                val g = gaussianLogWeight(f, frequencies[p], key.width) * f
                     numerator += g * power[k]
                     denominator += g / f
                 }
@@ -98,13 +98,16 @@ class PlanCache(private val maxBytes: Long = 64L * 1024 * 1024) {
 }
 
 /** One instance per stream: FFT plan, Hann and scratch buffers are reused. */
-class Analyzer(val key: PlanKey, cache: PlanCache) {
+class Analyzer(val key: PlanKey, cache: PlanCache, calibration: CalibrationCurve? = null) {
     val plan = cache.get(key)
     private val fft = DoubleFFT_1D(key.size.toLong())
     private val work = DoubleArray(2 * key.size)
     private val temporal = DoubleArray(key.size) { if (key.hann) 0.5 - 0.5 * cos(2 * PI * it / key.size) else 1.0 }
     private val norm = 1.0 / (key.sampleRate * temporal.sumOf { it * it })
     private val psd = DoubleArray(key.size / 2 + 1)
+    private val correction = calibration?.let { curve -> DoubleArray(psd.size) { k ->
+        curve.correction(k.toDouble()*key.sampleRate/key.size)?.let { 10.0.pow(it/10.0) } ?: 1.0
+    } }
     val power = DoubleArray(key.points)
     fun analyze(samples: DoubleArray): DoubleArray {
         require(samples.size == key.size)
@@ -113,7 +116,7 @@ class Analyzer(val key: PlanKey, cache: PlanCache) {
         fft.realForwardFull(work)
         for (k in psd.indices) {
             val factor = if (k == 0 || (key.size % 2 == 0 && k == key.size / 2)) 1.0 else 2.0
-            psd[k] = (work[2*k] * work[2*k] + work[2*k+1] * work[2*k+1]) * norm * factor
+            psd[k] = (work[2*k] * work[2*k] + work[2*k+1] * work[2*k+1]) * norm * factor * (correction?.get(k) ?: 1.0)
         }
         plan.apply(psd, power)
         return power

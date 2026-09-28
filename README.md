@@ -8,7 +8,7 @@ BM Spectrum brings the desktop project's measurement algorithms into a small, pr
 
 A logarithmic chirp repeats the same excitation on every run, avoiding the run-to-run variation of random noise. Final Spectrum analysis uses the entire captured recording, which can resolve finer frequency detail than a short RTA or Welch window. Resolution still depends on recording length and smoothing: chirp alone does not guarantee better resolution than equally long noise measurements. Pink noise remains useful for continuously observing changes in RTA.
 
-For meaningful acoustic measurements, use an external measurement microphone. A phone's built-in microphone and Android processing can strongly shape the result; that setup is mainly useful for trying the interface, rather than evaluating a loudspeaker's response. Examples of measurement microphones include [Behringer ECM8000-U](https://www.behringer.com/en/products/0506-ABU), [miniDSP UMIK-1](https://www.minidsp.com/products/acoustic-measurement/umik-1?showall=1) and [Dayton Audio iMM-6C](https://www.daytonaudio.com/product/1974/imm-6c-idevice-usb-c-calibrated-microphone). These are equipment examples, not a tested compatibility list for this app. Android USB audio routing depends on the phone; this version does not yet apply microphone calibration files or measure calibrated SPL.
+For meaningful acoustic measurements, use an external measurement microphone. A phone's built-in microphone and Android processing can strongly shape the result; built-in microphone calibration can compensate broad response differences for approximate measurements. Examples of measurement microphones include [Behringer ECM8000-U](https://www.behringer.com/en/products/0506-ABU), [miniDSP UMIK-1](https://www.minidsp.com/products/acoustic-measurement/umik-1?showall=1) and [Dayton Audio iMM-6C](https://www.daytonaudio.com/product/1974/imm-6c-idevice-usb-c-calibrated-microphone). These are equipment examples, not a tested compatibility list for this app. Android USB audio routing depends on the phone; this version does not import microphone calibration files or measure calibrated SPL.
 
 ## Measurement modes
 
@@ -42,6 +42,12 @@ Chirp adds 0.5 s fade-in and fade-out outside the working sweep: a 5 s sweep tak
 
 Settings open immediately when tapped; measurement and playback finish stopping in the background. Putting the app in the background also stops them. The screen stays awake while measuring. Settings are saved on the device.
 
+### Built-in microphone calibration
+
+Under **Settings → Input**, select the external reference microphone and adjust its gain when supported. Gain is applied when you release the slider. Open **Microphone calibration** in the same section. The app chooses the phone's primary built-in microphone automatically and plays through Android's default media output. Place the microphone capsules as close together as possible. **Measure calibration** makes four sequential recordings: reference background noise, built-in background noise, reference signal, and built-in signal. Keep the setup and media volume unchanged throughout. See [Calibration instructions](CALIBRATION.md) for details.
+
+The result shows both noise spectra, both signal spectra, the correction curve and its valid frequency range. **Use calibration** enables the latest successful curve and restricts the analysis band to its valid range. Only that curve is stored. Errors identify the affected microphone for clipping and insufficient SNR. A peak input meter at the right of the main graph shows the peak dBFS level as a narrow unlabelled bar. Wider hardware validation remains open.
+
 ## Graph controls
 
 - **Tap or drag horizontally:** select a frequency and read its level. During RTA measurement, the cursor follows the strongest measured frequency and stays at the last maximum when measurement stops.
@@ -72,7 +78,7 @@ Spectrum smoothing can be set from 0.1 to 1.0 octave. Welch controls show second
 
 ## Current scope
 
-Capture and analysis use standard Android audio at mono 48 kHz; Android handles routing and resampling. On Android 14+, supported USB outputs use a 48 kHz, 16-bit stereo mixer for simultaneous playback and recording, with the same generator signal on both channels. This version has no reference channel, calibrated SPL, file import/export or saved audio recordings. Spectrum capture is analyzed in memory. The 1/3-, 1/6- and 1/12-octave center grids follow standard fractional-octave spacing and use Gaussian smoothing rather than an IEC-certified filter bank. RTA analyzes the latest complete recording window, so slow processing skips outdated updates instead of accumulating latency.
+Capture and analysis use standard Android audio at mono 48 kHz; the recording input can be selected in settings. On Android 14+, supported USB outputs use a 48 kHz, 16-bit stereo mixer for simultaneous playback and recording, with the same generator signal on both channels. This version has no calibrated SPL, file import/export or saved audio recordings. Spectrum capture is analyzed in memory. The 1/3-, 1/6- and 1/12-octave center grids follow standard fractional-octave spacing and use Gaussian smoothing rather than an IEC-certified filter bank. RTA analyzes the latest complete recording window, so slow processing skips outdated updates instead of accumulating latency.
 
 Numerical DSP tests and device checks have passed on a V2529 running Android 16. USB loopback with a Creative SB X-Fi Surround 5.1 Pro verifies playback and capture of both generators. USB capture uses a separate Android recording mode to avoid the low-frequency filtering observed on this phone. Loopback tones measured approximately -0.09 dB at 20 Hz and -0.52 dB at 20 kHz relative to 1 kHz; compatibility with other phones and interfaces still depends on their audio drivers.
 

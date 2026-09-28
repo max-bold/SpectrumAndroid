@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { writeFileSync, mkdirSync } from 'node:fs';
 export const adb = process.env.ADB || 'C:/platform-tools/adb.exe';
+const appPackage = process.env.APP_PACKAGE || 'com.bm.spectrum';
 export async function connect() {
-  const pid = execFileSync(adb,['shell','pidof','com.bm.spectrum'],{encoding:'utf8'}).trim();
+  const pid = execFileSync(adb,['shell','pidof',appPackage],{encoding:'utf8'}).trim();
   if(!pid) throw new Error('Start BM Spectrum on the phone first');
   execFileSync(adb,['forward','tcp:9223',`localabstract:webview_devtools_remote_${pid}`]);
   const targets = await (await fetch('http://127.0.0.1:9223/json', { signal: AbortSignal.timeout(10000) })).json();

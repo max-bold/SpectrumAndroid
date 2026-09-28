@@ -9,8 +9,8 @@ android {
         applicationId "com.bm.spectrum"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "0.2.1"
+        versionCode 4
+        versionName "0.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -30,6 +30,14 @@ android {
         }
     }
     buildTypes {
+        debug {
+            // Opt-in side-by-side build for devices carrying an older signing key.
+            if (project.findProperty('bmSideBySide') == 'true') {
+                applicationIdSuffix '.dev'
+                resValue 'string', 'app_name', 'BM Spectrum Dev'
+                resValue 'string', 'title_activity_main', 'BM Spectrum Dev'
+            }
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

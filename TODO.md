@@ -50,7 +50,19 @@
 - [x] Change RTA display to a line in 1/12-octave mode.
 - [x] Make the cursor follow the maximum while RTA is measuring.
 
-## v0.3
+## v0.3 — completed
 
-- [ ] Phone mic calibration
-- [ ] IO device selection
+- [x] Implement built-in microphone frequency-response calibration against an external reference using four sequential recordings: background noise from each input, then the same repeated pink-noise signal from each input. Numerically verify alignment, SNR/repeatability checks, correction, persistence and range restriction.
+- [x] Resolve external-reference clipping on V2529 with ECM8000-U. USB gain can be read and changed between recordings; restoring both audio interfaces allowed subsequent capture. A 0 dB gain produced an unclipped calibration with a valid range of approximately 59 Hz–17 kHz and +13.9 dB maximum correction under the ±20 dB limit.
+- [x] Select the recording input in settings, including explicit built-in and USB inputs.
+- [x] Use Android's default media output for calibration and normal measurements; keep output selection out of settings.
+- [x] Place the peak dBFS meter at the right plotting edge in both orientations, as a narrow unlabelled bar with a 3 px gap. Verify logo and controls on the connected phone.
+- [x] Group microphone selection, gain and calibration under the bottom INPUT section. Apply gain on slider completion; verify no gap when gain is hidden.
+- [x] Retain only the latest successful calibration with an on/off switch and four diagnostic spectra, correction and valid range. Align signals at 1 kHz and apply the same channel offsets to noise. Verify persistence, channel-specific SNR/clipping errors and missing-reference error.
+- [x] Increase calibration correction and diagnostic smoothing to 1.0 octave; use the stored smoothed curve during measurement. Arrange landscape calibration controls/instructions and graph in two columns.
+- [x] Add 0.2 s calibration fades outside the analyzed periods and average 3 s of background noise per input; numerical regression covers the fades, alignment and later noise windows.
+- [x] Preserve calibration on/off across input changes and recalibration; bypass correction for external inputs and restrict the band when returning to the calibrated built-in input.
+
+## v0.4
+
+- [ ] Expand physical calibration validation beyond the V2529, ECM8000-U and Bluetooth speaker setup. Check device routing, ambient-noise sensitivity and repeatability across setups.
