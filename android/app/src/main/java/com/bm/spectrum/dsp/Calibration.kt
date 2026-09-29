@@ -10,7 +10,7 @@ object CalibrationLimits {
     const val MIN_REPEATABILITY = 0.9
     const val MAX_CORRECTION_DB = 20.0
     const val POINTS = 128
-    const val WIDTH_OCTAVES = 1.0
+    const val WIDTH_OCTAVES = 0.5
     const val PERIOD_SECONDS = 3
     const val SILENCE_SECONDS = 0.5
     const val AMBIENT_SECONDS = 3

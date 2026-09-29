@@ -4,7 +4,7 @@ import { App as NativeApp } from '@capacitor/app';
 import Chart from './Chart';
 import { Spectrum, loadSettings, loadCalibrations, clampToCalibration, validate, SETTINGS_KEY, CALIBRATIONS_KEY, type Calibration, type InputDevice, type Settings, type EngineState, type PlotData } from './model';
 import logo from '../logo/White@4x.png';
-import { sliderSpec, updateNumeric } from './settings-controls';
+import { applicableCalibration, sliderSpec, updateNumeric } from './settings-controls';
 
 const initial: EngineState = {running:false,generating:false,error:'',elapsed:0,sweepLead:0,frames:0,cacheBuilds:0};
 const calibrationPhaseText:Record<string,string> = {
@@ -37,6 +37,8 @@ export default function App() {
   const latestCalibration=calibrations.at(-1);
   const selectedInputId=draft.inputDeviceId<0?defaultInputId:draft.inputDeviceId;
   const selectedInput=devices.find(d=>d.id===selectedInputId);
+  const draftCalibration=applicableCalibration(draft,calibrations,devices,defaultInputId);
+  const boundedDraft=draftCalibration?clampToCalibration(draft,draftCalibration):draft;
   const mounted=useRef(true);
   useEffect(()=>{
     if(!Capacitor.isNativePlatform()) return;
@@ -78,14 +80,14 @@ export default function App() {
     if(draft.inputDeviceId>=0 && devices.length && !devices.some(d=>d.id===draft.inputDeviceId)) {setError('Selected recording device is disconnected');return;}
     const selected=calibrations.find(c=>c.id===draft.calibrationId);
     if(draft.calibrationId && !selected) {setError('Calibration does not match the selected input');return;}
-    const saved=selected && selected.inputDeviceId===selectedInputId?clampToCalibration(draft,selected):draft;
+    const saved=boundedDraft;
     const problem=validate(saved); if(problem) {setError(problem);return;}
     localStorage.setItem(SETTINGS_KEY,JSON.stringify(saved));
     if(JSON.stringify(settings)!==JSON.stringify(saved)) setData(null);
     setSettings({...saved}); setShowSettings(false); setError('');
   }
   function field(key:keyof Settings,label:string,unit:string) {
-    const spec=sliderSpec(key,draft),value=draft[key] as number;
+    const spec=sliderSpec(key,boundedDraft,draftCalibration),value=boundedDraft[key] as number;
     // Keep exact sample counts in storage/bridge; expose both Welch controls in seconds.
     const displayValue=key==='welchSize'||key==='welchHop'?Number((value/48000).toPrecision(5)):Number(value.toFixed(3));
     const position=spec.log?Math.log(value/spec.min)/Math.log(spec.max/spec.min)*1000:spec.power?Math.log2(value):value;
@@ -93,8 +95,8 @@ export default function App() {
       <input aria-label={label} aria-valuetext={`${displayValue} ${unit}`} type="range" min={spec.log?0:spec.min} max={spec.log?1000:spec.max} step={spec.log?1:spec.step} value={position} onChange={e=>{
         const raw=Number(e.target.value);
         let v=spec.log?spec.min*(spec.max/spec.min)**(raw/1000):spec.power?2**raw:raw;
-        if(spec.log) v=v>=1000?Math.round(v/10)*10:Math.round(v);
-        setDraft(updateNumeric(draft,key,v));
+        if(spec.log) v=raw===0?spec.min:raw===1000?spec.max:v>=1000?Math.round(v/10)*10:Math.round(v);
+        setDraft(updateNumeric(boundedDraft,key,v,draftCalibration));
       }}/></label>;
   }
   function toggleGenerator() {
