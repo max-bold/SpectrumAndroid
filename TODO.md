@@ -68,4 +68,5 @@
 - [x] User confirmed that calibration works normally on the current setup.
 - [x] Reduce calibration log-Gaussian smoothing from 1.0 to 0.5 octave, preserving the capture, quality checks and correction algorithm.
 - [x] Restrict both Band slider scales to the active matching built-in calibration range, including fractional endpoints; restore full limits when calibration is disabled or an external input is selected.
+- [ ] Review how calibration settings are applied, especially the Band limits. When calibration is disabled, reset Band to the full 20 Hz–20 kHz range.
 - [ ] Expand physical calibration validation beyond the V2529, ECM8000-U and Bluetooth speaker setup. Check device routing, ambient-noise sensitivity and repeatability across setups.
